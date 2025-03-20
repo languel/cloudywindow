@@ -22,7 +22,8 @@ body {
     left: 0;
     height: 20px;
     width: 100%;
-    -webkit-app-region: drag;
+    -webkit-app-region: drag; /* Note: Only supported in Chromium-based browsers */
+    /* For non-Chromium browsers, consider alternative drag functionality using JavaScript */
     z-index: 1000;
 }
 
@@ -37,21 +38,28 @@ body {
     transition: opacity 0.3s ease;
     z-index: 100;
     justify-content: space-between; /* Ensure consistent spacing */
+    gap: 5px; /* Use gap for consistent spacing between elements */
 }
 
 .control-button {
-    background-color: rgba(60, 60, 60, 0.7);
+    background-color: rgba(25, 25, 25, 0.7); /* Match the bar color */
     color: white;
     border: none;
     border-radius: 3px;
-    padding: 5px 10px;
-    margin-right: 10px; /* Consistent spacing */
+    padding: 5px 8px;
+    margin-right: 0; /* Remove margin, using gap instead */
     cursor: pointer;
     transition: background-color 0.2s;
+    height: 30px; /* Set a fixed height */
 }
 
 .control-button:last-child {
     margin-right: 0; /* Remove margin for the last button */
+}
+
+/* Remove duplicate styling for new-tab-button as it inherits from control-button */
+#new-tab-button {
+    /* No additional styles needed, inherits from .control-button */
 }
 
 .control-button.open-file::before {
@@ -63,13 +71,15 @@ body {
 }
 
 .control-button:hover {
-    background-color: rgba(80, 80, 80, 0.8);
+    background-color: rgba(45, 45, 45, 0.8); /* Slightly lighter on hover */
 }
 
 .url-container {
     flex-grow: 1;
     display: flex;
-    margin: 0 5px;
+    margin: 0;
+    align-items: center;
+    gap: 5px; /* Consistent spacing */
 }
 
 #url-input {
@@ -78,14 +88,20 @@ body {
     color: white;
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: 3px;
-    padding: 5px;
-    margin-right: 5px;
+    padding: 0 5px; /* Reduced padding to help with height */
+    margin-right: 0; /* Remove margin, using gap instead */
     transition: border-color 0.2s;
+    height: 30px; /* Match button height */
+    box-sizing: border-box; /* Include padding and border in height calculation */
+    line-height: 28px; /* Align text vertically */
 }
 
-#url-input.drag-over {
-    border-color: rgba(100, 180, 255, 0.8);
-    background-color: rgba(50, 50, 70, 0.8);
+/* Ensure the go button has consistent styling with other buttons */
+#go-button {
+    height: 30px;
+    box-sizing: border-box;
+    padding: 5px 10px;
+    margin-right: 0;
 }
 
 /* Webview container */
