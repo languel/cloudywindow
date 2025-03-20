@@ -35,7 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Removed initializeAutoHide() as we're eliminating auto-fade
 
     // Load a default page
-    navigateToUrl('https://www.example.com')
+    navigateToUrl('default.html')
 })
 
 // Setup all event listeners

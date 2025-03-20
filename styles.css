@@ -36,6 +36,7 @@ body {
     -webkit-app-region: no-drag;
     transition: opacity 0.3s ease;
     z-index: 100;
+    justify-content: space-between; /* Ensure consistent spacing */
 }
 
 .control-button {
@@ -44,9 +45,21 @@ body {
     border: none;
     border-radius: 3px;
     padding: 5px 10px;
-    margin-right: 5px;
+    margin-right: 10px; /* Consistent spacing */
     cursor: pointer;
     transition: background-color 0.2s;
+}
+
+.control-button:last-child {
+    margin-right: 0; /* Remove margin for the last button */
+}
+
+.control-button.open-file::before {
+    content: "⩸"; /* Change icon to ⩸ */
+}
+
+.control-button.go::before {
+    content: "➔"; /* Change icon to a thick right arrow */
 }
 
 .control-button:hover {

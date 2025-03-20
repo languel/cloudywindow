@@ -1,12 +1,11 @@
 {
-  "name": "transparent-browser-overlay",
-  "productName": "Transparent Browser Overlay",
-  "description": "A transparent, borderless browser that can overlay other applications",
+  "name": "cloudywindow",
+  "productName": "cloudywindow",
+  "description": "A transparent, borderless browser",
   "keywords": [
     "overlay",
     "browser",
-    "transparent",
-    "electron"
+    "transparent"
   ],
   "main": "./main.js",
   "version": "1.0.0",
@@ -32,8 +31,8 @@
   "config": {
     "forge": {
       "packagerConfig": {
-        "icon": "./icon",
-        "appBundleId": "com.app.transparentbrowser"
+        "icon": "⛅︎",
+        "appBundleId": "com.app.cloudywindow"
       },
       "makers": [
         {

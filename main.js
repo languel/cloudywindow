@@ -267,7 +267,7 @@ function createMenu() {
           label: 'Learn More',
           click: async () => {
             const { shell } = require('electron');
-            await shell.openExternal('https://github.com/yourusername/c3');
+            await shell.openExternal('https://github.com/languel/cloudywindow');
           }
         }
       ]
