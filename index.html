@@ -3,13 +3,53 @@
   <head>
     <meta charset="UTF-8">
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; child-src 'self'">
     <link href="./styles.css" rel="stylesheet">
-    <title>Transparent Hello World</title>
+    <title>Transparent Browser Overlay</title>
   </head>
   <body>
-    <div class="white-circle">
-        <div>Hello World!</div>
+    <!-- Main container for all UI components -->
+    <div class="main-container">
+      <!-- Draggable region for moving the window -->
+      <div class="drag-region"></div>
+      
+      <!-- Browser navigation controls (toggleable) -->
+      <div class="browser-controls" id="browser-controls">
+        <button id="back-button" title="Go Back" class="control-button">←</button>
+        <button id="forward-button" title="Go Forward" class="control-button">→</button>
+        <button id="reload-button" title="Reload" class="control-button">↻</button>
+        <div class="url-container" id="url-container">
+          <input type="text" id="url-input" placeholder="Enter URL">
+          <button id="go-button" class="control-button">Go</button>
+        </div>
+        <button id="toggle-ui-button" title="Toggle UI" class="control-button">UI</button>
+        <button id="toggle-frame-button" title="Toggle Frame" class="control-button">⊞</button>
+        <button id="fullscreen-button" title="Toggle Fullscreen" class="control-button">⛶</button>
+      </div>
+      
+      <!-- Web content container -->
+      <div class="webview-container">
+        <webview id="content-webview" src="about:blank" allowpopups></webview>
+      </div>
+      
+      <!-- Overlay ui for resizing the window when frame is off -->
+      <div class="resize-handles">
+        <div class="resize-handle resize-handle-n"></div>
+        <div class="resize-handle resize-handle-ne"></div>
+        <div class="resize-handle resize-handle-e"></div>
+        <div class="resize-handle resize-handle-se"></div>
+        <div class="resize-handle resize-handle-s"></div>
+        <div class="resize-handle resize-handle-sw"></div>
+        <div class="resize-handle resize-handle-w"></div>
+        <div class="resize-handle resize-handle-nw"></div>
+      </div>
+      
+      <!-- Status indicator -->
+      <div class="status-bar" id="status-bar">
+        <span id="status-text">Ready</span>
+      </div>
     </div>
+
+    <script src="./renderer.js"></script>
   </body>
 </html>
