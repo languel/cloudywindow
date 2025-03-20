@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; child-src 'self'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self'; style-src 'self' 'unsafe-inline'; child-src 'self' file:;">
     <link href="./styles.css" rel="stylesheet">
     <title>Transparent Browser Overlay</title>
   </head>
@@ -18,12 +18,13 @@
         <button id="back-button" title="Go Back" class="control-button">←</button>
         <button id="forward-button" title="Go Forward" class="control-button">→</button>
         <button id="reload-button" title="Reload" class="control-button">↻</button>
+        <button id="open-file-button" title="Open File (Cmd+O)" class="control-button">📂</button>
         <div class="url-container" id="url-container">
-          <input type="text" id="url-input" placeholder="Enter URL">
+          <input type="text" id="url-input" placeholder="Enter URL or drop file">
           <button id="go-button" class="control-button">Go</button>
         </div>
         <button id="toggle-ui-button" title="Toggle UI" class="control-button">UI</button>
-        <button id="toggle-frame-button" title="Toggle Frame" class="control-button">⊞</button>
+        <button id="toggle-frame-button" title="Reset Window Size" class="control-button">⊞</button>
         <button id="fullscreen-button" title="Toggle Fullscreen" class="control-button">⛶</button>
       </div>
       

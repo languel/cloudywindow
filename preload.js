@@ -21,13 +21,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // UI toggling
   onToggleUrlBar: (callback) => ipcRenderer.on('toggle-url-bar', callback),
   onToggleUI: (callback) => ipcRenderer.on('toggle-ui', callback),
-  onFrameToggled: (callback) => ipcRenderer.on('frame-toggled', callback),
+  // Remove frame toggle functionality
   
   // Window management
   setWindowSize: (width, height) => ipcRenderer.send('set-window-size', width, height),
   
+  // URL management
+  updateURL: (url) => ipcRenderer.send('url-updated', url),
+  onLoadLastUrl: (callback) => ipcRenderer.on('load-last-url', callback),
+  
   // Navigation
-  navigate: (url) => ipcRenderer.send('navigate', url)
+  navigate: (url) => ipcRenderer.send('navigate', url),
+  onNavigateTo: (callback) => ipcRenderer.on('navigate-to-url', callback),
+  
+  // File operations
+  openFile: () => ipcRenderer.send('open-file-dialog'),
+  onFileSelected: (callback) => ipcRenderer.on('selected-file', callback)
 })
 
 window.addEventListener('DOMContentLoaded', () => {

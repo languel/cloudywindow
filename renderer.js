@@ -13,6 +13,7 @@ const goButton = document.getElementById('go-button')
 const backButton = document.getElementById('back-button')
 const forwardButton = document.getElementById('forward-button')
 const reloadButton = document.getElementById('reload-button')
+const openFileButton = document.getElementById('open-file-button')
 const toggleUiButton = document.getElementById('toggle-ui-button')
 const toggleFrameButton = document.getElementById('toggle-frame-button')
 const fullscreenButton = document.getElementById('fullscreen-button')
@@ -30,7 +31,8 @@ let inactivityTimer = null
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners()
     setupResizeHandlers()
-    initializeAutoHide()
+    setupDragAndDrop()
+    // Removed initializeAutoHide() as we're eliminating auto-fade
 
     // Load a default page
     navigateToUrl('https://www.example.com')
@@ -69,14 +71,20 @@ function setupEventListeners() {
     // UI toggle
     toggleUiButton.addEventListener('click', toggleUI)
 
-    // Frame toggle
+    // Frame toggle button - now just resizes window to default size
     toggleFrameButton.addEventListener('click', () => {
-        window.electronAPI.setWindowSize(800, 600) // Reset size when toggling frame
+        // Reset window to default size
+        window.electronAPI.setWindowSize(800, 600)
     })
 
     // Fullscreen toggle
     fullscreenButton.addEventListener('click', () => {
         document.documentElement.requestFullscreen()
+    })
+
+    // Open file button
+    openFileButton.addEventListener('click', () => {
+        window.electronAPI.openFile()
     })
 
     // Webview events
@@ -92,9 +100,11 @@ function setupEventListeners() {
         updateNavigationButtons()
     })
 
-    webview.addEventListener('did-navigate', () => {
+    webview.addEventListener('did-navigate', (e) => {
         urlInput.value = webview.getURL()
         updateNavigationButtons()
+        // Update main process with current URL
+        window.electronAPI.updateURL(webview.getURL())
     })
 
     webview.addEventListener('page-title-updated', (e) => {
@@ -121,26 +131,154 @@ function setupEventListeners() {
         toggleUI()
     })
 
-    window.electronAPI.onFrameToggled((event, isFramed) => {
-        frameVisible = isFramed
-        updateUIForFrameState()
+    // Remove unused frame toggle event listeners
+    window.electronAPI.onFrameToggled = null;
+
+    // Listen for file selection
+    window.electronAPI.onFileSelected((event, filePath) => {
+        openLocalFile(filePath)
+    })
+    
+    // Listen for navigation requests from main process
+    window.electronAPI.onNavigateTo((event, url) => {
+        navigateToUrl(url)
+    })
+
+    // Listen for the last URL from main process after window recreation
+    window.electronAPI.onLoadLastUrl((event, lastUrl) => {
+        if (lastUrl) {
+            navigateToUrl(lastUrl)
+        }
     })
 
     // Reset inactivity timer on mouse movement
-    document.addEventListener('mousemove', resetInactivityTimer)
+    document.removeEventListener('mousemove', resetInactivityTimer)
+}
+
+// Setup drag and drop for file opening
+function setupDragAndDrop() {
+    // Add drag and drop to the entire document/window
+    document.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.body.classList.add('drag-over-window');
+    });
+    
+    document.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only remove the class if we're leaving the document
+        if (e.clientX <= 0 || e.clientY <= 0 || 
+            e.clientX >= window.innerWidth || e.clientY >= window.innerHeight) {
+            document.body.classList.remove('drag-over-window');
+        }
+    });
+    
+    document.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        document.body.classList.remove('drag-over-window');
+        
+        handleFileDrop(e);
+    });
+    
+    // Keep URL input specific handlers for visual feedback
+    urlInput.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        urlInput.classList.add('drag-over');
+    });
+    
+    urlInput.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        urlInput.classList.remove('drag-over');
+    });
+    
+    urlInput.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        urlInput.classList.remove('drag-over');
+        document.body.classList.remove('drag-over-window');
+        
+        handleFileDrop(e);
+    });
+}
+
+// Handle file drops more robustly
+function handleFileDrop(event) {
+    // Handle file drops
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        const file = event.dataTransfer.files[0];
+        
+        // In Electron, we should have access to the path
+        if (file.path) {
+            openLocalFile(file.path);
+            return;
+        }
+    }
+    
+    // Handle URL drops or alternative file handling
+    const url = event.dataTransfer.getData('text/uri-list') || 
+                event.dataTransfer.getData('text/plain');
+                
+    if (url) {
+        if (url.startsWith('file://')) {
+            // It's a file URL, use it directly
+            console.log('Dropped file URL:', url);
+            navigateToUrl(url);
+        } else {
+            // It's a regular URL
+            navigateToUrl(url);
+        }
+    }
+}
+
+// Open local file with more robust path handling
+function openLocalFile(filePath) {
+    if (!filePath) return;
+    
+    statusText.textContent = `Opening: ${filePath}`;
+    console.log('Original path:', filePath);
+    
+    // Remove file:// prefix if it exists (for consistency)
+    if (filePath.startsWith('file://')) {
+        filePath = filePath.substring(7);
+    }
+    
+    // Replace backslashes with forward slashes
+    filePath = filePath.replace(/\\/g, '/');
+    
+    // Handle macOS path that might start with /Users
+    if (!filePath.startsWith('/') && !filePath.match(/^[A-Za-z]:/)) {
+        filePath = '/' + filePath;
+    }
+    
+    // Create proper file URL
+    const fileUrl = `file://${encodeURI(filePath)}`;
+    console.log('Attempting to load file:', fileUrl);
+    navigateToUrl(fileUrl);
 }
 
 // Navigate to URL with proper formatting
 function navigateToUrl(url) {
     if (!url) return
     
-    // Add protocol if missing
-    if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
+    // Special case for localhost - prefer HTTP unless HTTPS is explicitly specified
+    if (url.includes('localhost') && !url.startsWith('http')) {
+        url = 'http://' + url.replace(/^https?:\/\//i, '')
+    }
+    // Add protocol for non-localhost URLs if missing
+    else if (!/^(https?|file):\/\//i.test(url)) {
         url = 'https://' + url
     }
     
+    console.log('Navigating to:', url)
     webview.src = url
     urlInput.blur() // Remove focus from input
+    
+    // Inform main process of URL change for persistence
+    window.electronAPI.updateURL(url)
 }
 
 // Update navigation button states
@@ -149,16 +287,18 @@ function updateNavigationButtons() {
     forwardButton.disabled = !webview.canGoForward()
 }
 
-// Toggle UI visibility
+// Toggle UI visibility - keep this function, but remove auto-hide logic
 function toggleUI() {
     uiVisible = !uiVisible
     
     if (uiVisible) {
         browserControls.classList.remove('hidden')
         statusBar.classList.remove('hidden')
+        document.body.classList.remove('ui-hidden') // Remove shadow class
     } else {
         browserControls.classList.add('hidden')
         statusBar.classList.add('hidden')
+        document.body.classList.add('ui-hidden') // Add shadow class
     }
 }
 
@@ -178,13 +318,9 @@ function toggleUrlBar() {
 
 // Update UI elements based on frame state
 function updateUIForFrameState() {
+    // Always show resize handles since we're always frameless
     const resizeHandles = document.querySelector('.resize-handles')
-    
-    if (frameVisible) {
-        resizeHandles.style.display = 'none'
-    } else {
-        resizeHandles.style.display = 'block'
-    }
+    resizeHandles.style.display = 'block'
 }
 
 // Setup handlers for window resizing
@@ -231,25 +367,4 @@ function setupResizeHandlers() {
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', stopResize)
     }
-}
-
-// Auto-hide UI after period of inactivity
-function initializeAutoHide() {
-    resetInactivityTimer()
-}
-
-function resetInactivityTimer() {
-    clearTimeout(inactivityTimer)
-    
-    // If UI is hidden, show it
-    if (!uiVisible) {
-        toggleUI()
-    }
-    
-    // Set timer to hide UI after 3 seconds of inactivity
-    inactivityTimer = setTimeout(() => {
-        if (uiVisible) {
-            toggleUI()
-        }
-    }, 3000)
 }
