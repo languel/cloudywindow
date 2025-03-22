@@ -97,12 +97,14 @@ function setupEventListeners() {
     // Webview events
     webview.addEventListener('did-start-loading', () => {
         statusText.textContent = 'Loading...'
-        reloadButton.textContent = '×'
+        // Remove text content manipulation, use CSS classes instead
+        if (reloadButton) reloadButton.classList.add('loading')
     })
 
     webview.addEventListener('did-stop-loading', () => {
         statusText.textContent = 'Ready'
-        reloadButton.textContent = '↻'
+        // Remove text content manipulation, use CSS classes instead
+        if (reloadButton) reloadButton.classList.remove('loading')
         urlInput.value = webview.getURL()
         updateNavigationButtons()
     })
@@ -131,7 +133,7 @@ function setupEventListeners() {
 
     // Listen for IPC messages
     window.electronAPI.onToggleUrlBar(() => {
-        toggleUrlBar()
+        focusUrlBar()
     })
 
     window.electronAPI.onToggleUI(() => {
@@ -365,6 +367,7 @@ function toggleUI() {
  //webview.reload();
 }
 
+<<<<<<< HEAD
 // Toggle URL bar visibility
 function toggleUrlBar() {
     const urlContainer = document.getElementById('url-container')
@@ -377,6 +380,25 @@ function toggleUrlBar() {
     } else {
         urlContainer.style.display = 'none'
     }
+=======
+// Toggle URL bar visibility - replaced with focusUrlBar
+function focusUrlBar() {
+  const urlContainer = document.getElementById('url-container')
+  
+  // Always ensure URL bar is visible
+  if (!urlBarVisible) {
+    urlBarVisible = true
+    urlContainer.style.display = 'flex'
+  }
+  
+  // Focus and select text in URL input
+  if (urlInput) {
+    setTimeout(() => {
+      urlInput.focus()
+      urlInput.select()
+    }, 10) // Small timeout to ensure the UI has updated
+  }
+>>>>>>> origin/c3browser
 }
 
 // Update UI elements based on frame state

@@ -1,18 +1,33 @@
-body {
+/* CSS CUSTOM PROPERTIES */
+:root {
+    --button-height: 30px;
+    --button-bg: rgba(25, 25, 25, 0.7);
+    --button-hover-bg: rgba(45, 45, 45, 0.8);
+    --control-bar-bg: rgba(25, 25, 25, 0.7);
+    --ui-border-color: rgba(255, 255, 255, 0.2);
+    --icon-size-normal: 18px;
+    --icon-size-large: 22px;
+    --resize-handle-size: 5px;
+    --resize-corner-size: 10px;
+}
+
+/* BASE STYLES */
+body, html {
     margin: 0;
     padding: 0;
-    background-color: rgba(0, 0, 0, 0); /* Transparent background */
+    background-color: transparent !important;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
 }
 
-/* Main container that holds all UI components */
+/* LAYOUT */
 .main-container {
     width: 100%;
     height: 100vh;
     display: flex;
     flex-direction: column;
     position: relative;
+    background-color: transparent !important;
 }
 
 /* Draggable region for moving the window */
@@ -27,51 +42,85 @@ body {
     z-index: 1000;
 }
 
-/* Browser controls */
+/* BROWSER CONTROLS */
 .browser-controls {
     display: flex;
     align-items: center;
     padding: 5px;
-    background-color: rgba(25, 25, 25, 0.7);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background-color: var(--control-bar-bg);
+    border-bottom: 1px solid var(--ui-border-color);
     -webkit-app-region: no-drag;
-    transition: opacity 0.3s ease;
     z-index: 100;
-    justify-content: space-between; /* Ensure consistent spacing */
-    gap: 5px; /* Use gap for consistent spacing between elements */
+    justify-content: space-between;
+    gap: 5px;
 }
 
+/* BASE BUTTON STYLES */
 .control-button {
-    background-color: rgba(25, 25, 25, 0.7); /* Match the bar color */
+    background-color: var(--button-bg);
     color: white;
     border: none;
     border-radius: 3px;
     padding: 5px 8px;
-    margin-right: 0; /* Remove margin, using gap instead */
     cursor: pointer;
-    transition: background-color 0.2s;
-    height: 30px; /* Set a fixed height */
-}
-
-.control-button:last-child {
-    margin-right: 0; /* Remove margin for the last button */
-}
-
-/* Remove duplicate styling for new-tab-button as it inherits from control-button */
-#new-tab-button {
-    /* No additional styles needed, inherits from .control-button */
-}
-
-.control-button.open-file::before {
-    content: "⩸"; /* Change icon to ⩸ */
-}
-
-.control-button.go::before {
-    content: "➔"; /* Change icon to a thick right arrow */
+    height: var(--button-height);
+    box-sizing: border-box;
 }
 
 .control-button:hover {
-    background-color: rgba(45, 45, 45, 0.8); /* Slightly lighter on hover */
+    background-color: var(--button-hover-bg);
+}
+
+.control-button::before {
+    display: block;
+    text-align: center;
+    width: 100%;
+    line-height: 1;
+    font-size: var(--icon-size-normal);
+}
+
+/* SPECIFIC BUTTON ICONS */
+#back-button::before { 
+    content: "‹"; 
+    font-size: var(--icon-size-large);
+}
+
+#forward-button::before { 
+    content: "›";
+    font-size: var(--icon-size-large);
+}
+
+#reload-button::before { 
+    content: "↻";
+}
+
+#reload-button.loading::before { 
+    content: "×";
+}
+
+#go-button::before { 
+    content: "➡︎";
+}
+
+#open-file-button::before { 
+    content: "⎘";
+}
+
+#toggle-ui-button::before { 
+    content: "🌫️";
+}
+
+#toggle-frame-button::before { 
+    content: "⊞";
+}
+
+#fullscreen-button::before { 
+    content: "⛶";
+}
+
+#new-tab-button::before { 
+    content: "+";
+    font-weight: bold;
 }
 
 .url-container {
@@ -86,44 +135,42 @@ body {
     flex-grow: 1;
     background-color: rgba(40, 40, 40, 0.7);
     color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--ui-border-color);
     border-radius: 3px;
     padding: 0 5px; /* Reduced padding to help with height */
-    margin-right: 0; /* Remove margin, using gap instead */
-    transition: border-color 0.2s;
-    height: 30px; /* Match button height */
+    height: var(--button-height);
     box-sizing: border-box; /* Include padding and border in height calculation */
-    line-height: 28px; /* Align text vertically */
+    line-height: calc(var(--button-height) - 2px);
 }
 
 /* Ensure the go button has consistent styling with other buttons */
 #go-button {
-    height: 30px;
+    height: var(--button-height);
     box-sizing: border-box;
     padding: 5px 10px;
-    margin-right: 0;
 }
 
 /* Webview container */
 .webview-container {
     flex-grow: 1;
     position: relative;
+    background-color: transparent !important;
 }
 
-#content-webview {
+#content-webview, #content-view {
     width: 100%;
     height: 100%;
     border: none;
     outline: none;
+    background-color: transparent !important;
 }
 
 /* Status bar */
 .status-bar {
     padding: 2px 5px;
-    background-color: rgba(25, 25, 25, 0.7);
+    background-color: var(--control-bar-bg);
     color: white;
     font-size: 12px;
-    transition: opacity 0.3s ease;
 }
 
 /* Resize handles for frameless window */
@@ -142,95 +189,50 @@ body {
     pointer-events: auto;
 }
 
-.resize-handle-n {
-    top: 0;
-    left: 5px;
-    right: 5px;
-    height: 5px;
-    cursor: ns-resize;
+.resize-handle-n, .resize-handle-s {
+    left: var(--resize-handle-size);
+    right: var(--resize-handle-size);
+    height: var(--resize-handle-size);
 }
 
-.resize-handle-e {
-    top: 5px;
-    right: 0;
-    bottom: 5px;
-    width: 5px;
-    cursor: ew-resize;
+.resize-handle-e, .resize-handle-w {
+    top: var(--resize-handle-size);
+    bottom: var(--resize-handle-size);
+    width: var(--resize-handle-size);
 }
 
-.resize-handle-s {
-    bottom: 0;
-    left: 5px;
-    right: 5px;
-    height: 5px;
-    cursor: ns-resize;
-}
+.resize-handle-n { top: 0; cursor: ns-resize; }
+.resize-handle-s { bottom: 0; cursor: ns-resize; }
+.resize-handle-e { right: 0; cursor: ew-resize; }
+.resize-handle-w { left: 0; cursor: ew-resize; }
 
-.resize-handle-w {
-    top: 5px;
-    left: 0;
-    bottom: 5px;
-    width: 5px;
-    cursor: ew-resize;
-}
-
-.resize-handle-ne {
-    top: 0;
-    right: 0;
-    width: 10px;
-    height: 10px;
-    cursor: ne-resize;
-}
-
-.resize-handle-se {
-    bottom: 0;
-    right: 0;
-    width: 10px;
-    height: 10px;
-    cursor: se-resize;
-}
-
+.resize-handle-ne,
+.resize-handle-nw,
+.resize-handle-se,
 .resize-handle-sw {
-    bottom: 0;
-    left: 0;
-    width: 10px;
-    height: 10px;
-    cursor: sw-resize;
+    width: var(--resize-corner-size);
+    height: var(--resize-corner-size);
 }
 
-.resize-handle-nw {
-    top: 0;
-    left: 0;
-    width: 10px;
-    height: 10px;
-    cursor: nw-resize;
-}
+.resize-handle-ne { top: 0; right: 0; cursor: ne-resize; }
+.resize-handle-se { bottom: 0; right: 0; cursor: se-resize; }
+.resize-handle-sw { bottom: 0; left: 0; cursor: sw-resize; }
+.resize-handle-nw { top: 0; left: 0; cursor: nw-resize; }
 
 /* Hidden UI state */
 .hidden {
-    opacity: 0;
+    display: none !important;
 }
 
-.hidden:hover {
-    opacity: 0; /* Ensure it stays hidden */
-}
-
-/* Remove shadow when UI is hidden */
 body.ui-hidden {
     box-shadow: none;
+    background-color: transparent !important;
 }
 
-/* White circle from the original CSS */
-.white-circle {
-    width: 100px;
-    height: 100px;
-    background-color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    -webkit-app-region: drag;
-    user-select: none;
+/* Ensures webview takes full height when UI is hidden */
+body.ui-hidden #content-webview,
+body.ui-hidden #content-view {
+    height: 100% !important;
 }
 
 /* Utility classes */

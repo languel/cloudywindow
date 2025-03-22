@@ -37,6 +37,7 @@ function createWindow (options = {}) {
     ...windowState.bounds,
     transparent: true,
     frame: false,
+    icon: path.join(__dirname, 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -262,7 +263,7 @@ function createMenu() {
           }
         },
         {
-          label: 'Toggle URL Bar',
+          label: 'Focus URL Bar',
           accelerator: 'CmdOrCtrl+L',
           click: () => {
             mainWindow.webContents.send('toggle-url-bar');
