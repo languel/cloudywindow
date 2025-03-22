@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CloudyWindow</title>
+    <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+    <div id="ui-container">
+        <input type="text" id="url-input" placeholder="Enter URL or drop file">
+        <button id="go-button">Go</button>
+        <button id="back-button">Back</button>
+        <button id="forward-button">Forward</button>
+        <button id="reload-button">Reload</button>
+        <button id="toggle-ui-button">Toggle UI</button>
+    </div>
+    <iframe id="content-frame" src="default.html" frameborder="0"></iframe>
+    <script src="./renderer.js"></script>
+</body>
+</html>
