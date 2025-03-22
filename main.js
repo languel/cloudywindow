@@ -1,6 +1,7 @@
 const { app, BrowserWindow, globalShortcut, ipcMain, dialog, Menu, screen } = require('electron')
 const path = require('path')
 const url = require('url')
+const fs = require('fs')
 
 // Enable experimental features for permissions
 app.commandLine.appendSwitch('enable-experimental-web-platform-features')
@@ -102,52 +103,90 @@ function registerShortcuts() {
   
   // Open file
   globalShortcut.register('CommandOrControl+O', () => {
-    openFileDialog()
-  })
+    openFileDialog();
+  });
+ // Clear webview content - No global shortcut, handled via ipcMain.handle
 }
 
-// Handle window resizing
+// Handle window resizing and toggling UI by briefly toggling fullscreen
 ipcMain.on('set-window-size', (event, width, height) => {
-  if (mainWindow) {
-    mainWindow.setSize(width, height)
-  }
-})
+ if (mainWindow) {
+ mainWindow.setSize(width, height);
+ // Briefly toggle fullscreen to force a redraw
+ const isFullScreen = mainWindow.isFullScreen();
+ mainWindow.setFullScreen(!isFullScreen);
+ setTimeout(() => {
+ mainWindow.setFullScreen(isFullScreen);
+ }, 100);
+ }
+});
+
+ipcMain.on('toggle-ui', () => {
+ if (mainWindow) {
+ // Briefly toggle fullscreen to force a redraw
+ const isFullScreen = mainWindow.isFullScreen();
+ mainWindow.setFullScreen(!isFullScreen);
+ setTimeout(() => {
+ mainWindow.setFullScreen(isFullScreen);
+ }, 100);
+ }
+});
 
 // Handle file opening
 ipcMain.on('open-file-dialog', () => {
-  openFileDialog()
+ openFileDialog()
 })
 
 // Function to open file dialog
 function openFileDialog() {
-  dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'All Files', extensions: ['*'] },
-      { name: 'HTML', extensions: ['htm', 'html'] },
-      { name: 'PDF', extensions: ['pdf'] }
-    ]
-  }).then(result => {
-    if (!result.canceled && result.filePaths.length > 0) {
-      const filePath = result.filePaths[0]
-      mainWindow.webContents.send('selected-file', filePath)
-    }
-  }).catch(err => {
-    console.error('Error opening file dialog:', err)
-  })
+ dialog.showOpenDialog(mainWindow, {
+ properties: ['openFile'],
+ filters: [
+ { name: 'All Files', extensions: ['*'] },
+ { name: 'HTML', extensions: ['htm', 'html'] },
+ { name: 'PDF', extensions: ['pdf'] }
+ ]
+ }).then(result => {
+ if (!result.canceled && result.filePaths.length > 0) {
+ const filePath = result.filePaths[0]
+ mainWindow.webContents.send('selected-file', filePath)
+ }
+ }).catch(err => {
+ console.error('Error opening file dialog:', err)
+ })
 }
 
 // Handle navigation
 ipcMain.on('navigate', (event, url) => {
-  if (mainWindow) {
-    mainWindow.webContents.send('navigate-to-url', url)
-  }
+ if (mainWindow) {
+ mainWindow.webContents.send('navigate-to-url', url)
+ }
 })
+
+// Handle file reading
+ipcMain.handle('read-file-data', async (event, filePath) => {
+ try {
+ const data = fs.readFileSync(filePath);
+ return data.toString('base64');
+ } catch (error) {
+ console.error('Error reading file:', error);
+ return null; // Or throw an error if you want to handle it in the renderer
+ }
+});
+
+ipcMain.handle('clear-webview', async () => {
+ console.log('Clearing webview from main process.');
+ if (mainWindow && mainWindow.webContents) {
+ mainWindow.webContents.executeJavaScript('document.body.innerHTML = ""');
+ } else {
+ console.log('mainWindow or webContents is null in main process.');
+ }
+});
 
 // Function to create application menu
 function createMenu() {
   const isMac = process.platform === 'darwin';
-  
+
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{

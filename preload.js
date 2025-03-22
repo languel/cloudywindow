@@ -33,10 +33,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Navigation
   navigate: (url) => ipcRenderer.send('navigate', url),
   onNavigateTo: (callback) => ipcRenderer.on('navigate-to-url', callback),
-  
   // File operations
   openFile: () => ipcRenderer.send('open-file-dialog'),
-  onFileSelected: (callback) => ipcRenderer.on('selected-file', callback)
+  onFileSelected: (callback) => ipcRenderer.on('selected-file', callback),
+  readFileData: (filePath) => ipcRenderer.invoke('read-file-data', filePath),
+  clearWebview: () => ipcRenderer.invoke('clear-webview'),
 })
 
 window.addEventListener('DOMContentLoaded', () => {
