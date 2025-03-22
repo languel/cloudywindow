@@ -4,21 +4,21 @@ const goButton = document.getElementById('go-button');
 const backButton = document.getElementById('back-button');
 const forwardButton = document.getElementById('forward-button');
 const reloadButton = document.getElementById('reload-button');
+const openFileButton = document.getElementById('open-file-button');
+const newWindowButton = document.getElementById('new-window-button');
+const closeWindowButton = document.getElementById('close-window-button');
 const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 
 function navigateToUrl(url) {
-    if (!url) return;
+  console.log('navigateToUrl called with:', url);
+  if (!url) return;
     let fullUrl = url;
-    if (!/^https?:\/\//i.test(url)) {
+    if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
         fullUrl = 'http://' + url;
     }
-    iframe.src = 'about:blank'; // Clear the iframe
-    // Use a timeout to ensure about:blank is loaded before setting new URL
-    setTimeout(() => {
-      iframe.src = fullUrl;
-      urlInput.value = fullUrl;
-    }, 0);
+    iframe.src = fullUrl;
+    urlInput.value = fullUrl;
 }
 
 function openLocalFile(filePath) {
@@ -59,7 +59,13 @@ function handleFileDrop(event) {
 }
 
 function toggleUI() {
-    uiContainer.style.display = uiContainer.style.display === 'none' ? 'block' : 'none';
+  if (uiContainer.style.visibility === 'hidden' || uiContainer.style.visibility === '') {
+    uiContainer.style.visibility = 'visible';
+    uiContainer.style.backgroundColor = 'rgba(0, 0, 0, .1)'; // Semi-transparent background
+  } else {
+    // uiContainer.style.backgroundColor = 'transparent';
+    uiContainer.style.visibility = 'hidden';
+  }
 }
 
 function setupResizeHandlers() {
@@ -71,6 +77,7 @@ function clearIframeContent() {
 }
 
 // Event Listeners
+
 goButton.addEventListener('click', () => {
     navigateToUrl(urlInput.value);
 });
@@ -90,13 +97,27 @@ forwardButton.addEventListener('click', () => {
 });
 
 reloadButton.addEventListener('click', () => {
-    iframe.contentWindow.location.reload();
+  iframe.contentWindow.location.reload();
 });
 
-toggleUiButton.addEventListener('click', toggleUI);
+openFileButton.addEventListener('click', () => {
+    window.electronAPI.openFile();
+});
+
+newWindowButton.addEventListener('click', () => {
+    window.electronAPI.newWindow();
+});
+
+closeWindowButton.addEventListener('click', () => {
+    window.electronAPI.closeWindow();
+});
+
+toggleUiButton.addEventListener('click', () => {
+    toggleUI();
+});
 
 document.addEventListener('dragover', (event) => {
-    event.preventDefault();
+  event.preventDefault();
     event.stopPropagation();
 });
 
@@ -116,11 +137,32 @@ window.electronAPI.onOpenFileShortcut(() => {
 });
 
 window.electronAPI.onToggleUrlBarShortcut(() => {
-    // focus the urlInput
-    if (uiContainer.style.display === 'none') {
+    if (uiContainer.style.visibility === 'hidden' || uiContainer.style.visibility === '') {
       toggleUI();
     }
     urlInput.focus();
+    urlInput.select(); // Select all text in the URL input
 });
 
 window.electronAPI.onToggleUiShortcut(toggleUI);
+
+window.electronAPI.onRedrawWebview(() => {
+  const originalOpacity = iframe.style.opacity || 1;
+  iframe.style.opacity = 1;
+  setTimeout(() => {
+    iframe.style.opacity = originalOpacity;
+  }, 50); // Short delay
+});
+
+// Add event listener for the reload-content event
+window.electronAPI.onReloadContent(() => {
+  if (iframe.src !== 'about:blank' && iframe.src !== '') {
+    iframe.contentWindow.location.reload();
+  }
+});
+
+// Add event listener for the Go shortcut (Cmd+G)
+window.electronAPI.onGoToUrl(() => {
+  // Navigate to the URL in the input field even if UI is hidden
+  navigateToUrl(urlInput.value);
+});

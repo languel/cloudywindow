@@ -9,11 +9,14 @@
 <body>
     <div id="ui-container">
         <input type="text" id="url-input" placeholder="Enter URL or drop file">
-        <button id="go-button">Go</button>
-        <button id="back-button">Back</button>
-        <button id="forward-button">Forward</button>
-        <button id="reload-button">Reload</button>
-        <button id="toggle-ui-button">Toggle UI</button>
+        <button id="go-button" title="Go">➠</button>
+        <button id="back-button" title="Back">‹</button>
+        <button id="forward-button" title="Forward">›</button>
+        <button id="reload-button" title="Reload">⟲</button>
+        <button id="open-file-button" title="Open File">⍈</button>
+        <button id="new-window-button" title="New Window">+</button>
+        <button id="toggle-ui-button" title="Hide UI">−</button>
+        <button id="close-window-button" title="Close Window">×</button>
     </div>
     <iframe id="content-frame" src="default.html" frameborder="0"></iframe>
     <script src="./renderer.js"></script>

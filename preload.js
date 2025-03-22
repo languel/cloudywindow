@@ -12,4 +12,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onOpenFileShortcut: (callback) => ipcRenderer.on('open-file-shortcut', callback),
     onToggleUrlBarShortcut: (callback) => ipcRenderer.on('toggle-url-bar-shortcut', callback),
     onToggleUiShortcut: (callback) => ipcRenderer.on('toggle-ui-shortcut', callback),
+    onRedrawWebview: (callback) => ipcRenderer.on('redraw-webview', callback),
+    
+    // Add Go shortcut handler
+    onGoToUrl: (callback) => ipcRenderer.on('go-to-url', callback),
+    
+    // Add new window management methods
+    newWindow: () => ipcRenderer.send('new-window'),
+    closeWindow: () => ipcRenderer.send('close-window'),
+    
+    loadURL: (url) => ipcRenderer.send('load-url', url),
+    
+    onReloadContent: (callback) => ipcRenderer.on('reload-content', callback)
 });

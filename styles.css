@@ -9,36 +9,52 @@ body {
     top: 0;
     left: 0;
     width: 100%;
-    background-color: rgba(0, 0, 0, 0.8); /* Dark, semi-transparent background */
+    background-color: rgba(0, 0, 0, 0); /* More translucent background */
     color: white;
-    padding: 10px;
+    padding: 8px;
     z-index: 1000; /* Ensure it's on top */
-    display: none; /* Initially hidden */
+    visibility: hidden;/* Initially hidden */
     box-sizing: border-box; /* Include padding in width */
+    display: flex; /* Use flexbox for better layout control */
+    align-items: center; /* Center items vertically */
+    flex-wrap: nowrap; /* Keep all items on one line */
 }
 
 #url-input {
-    width: calc(100% - 220px); /* Adjust width based on buttons */
-    padding: 8px;
-    border: 1px solid #ccc;
+    width: calc(100% - 350px); /* Reduce width to make room for buttons */
+    padding: 4px 8px;
+    border: none; /* Remove border */
     border-radius: 4px;
-    margin-right: 10px;
-    background-color: rgba(255, 255, 255, 0.1); /* Slightly transparent white */
+    margin-right: 8px;
+    background-color: rgba(255, 255, 255, 0.0); /* Slightly transparent white */
     color: white;
+    flex-shrink: 1; /* Allow input to shrink if needed */
+    outline: none; /* Remove the focus outline */
+}
+
+/* Create a specific style for focus state */
+#url-input:focus {
+    outline: none; /* Remove outline on focus */
+    border: none; /* Ensure no border on focus */
+    /* box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2); Optional: subtle glow instead of border */
 }
 
 #ui-container button {
-    padding: 8px 12px;
+    padding: 4px 8px;
     border: none;
     border-radius: 4px;
-    background-color: #444;
-    color: white;
-    margin-right: 5px;
+    background-color: rgba(68, 68, 68, 0.0); /* More translucent buttons */
+    color: rgba(255, 255, 255, 0.75); /* Slightly dimmed text */
+    margin-right: 4px;
     cursor: pointer;
+    font-size: 0.85rem; /* Slightly smaller font */
+    min-width: 30px; /* Ensure buttons don't get too narrow */
+    flex-shrink: 0; /* Don't allow buttons to shrink */
 }
 
 #ui-container button:hover {
-    background-color: #555;
+    background-color: rgba(85, 85, 85, 0); /* More opaque on hover */
+    color: rgba(255, 255, 255, 0.9);
 }
 
 #content-frame {
