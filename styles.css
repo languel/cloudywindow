@@ -1,107 +1,25 @@
-body {
+/* ============================================
+   BASE STYLES
+   ============================================ */
+html, body {
     margin: 0;
     padding: 0;
-    background-color: rgba(0, 0, 0, 0); /* Transparent background */
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
+    background-color: transparent !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
-/* Main container that holds all UI components */
-.main-container {
-    width: 100%;
+/* ============================================
+   LAYOUT STRUCTURE
+   ============================================ */
+#app-container, .main-container {
+    width: 100vw;
     height: 100vh;
     display: flex;
     flex-direction: column;
+    background-color: transparent !important;
+    overflow: hidden;
     position: relative;
-}
-
-/* Draggable region for moving the window */
-.drag-region {
-    position: absolute;
-    top: 0;
-    left: 0;
-    height: 20px;
-    width: 100%;
-    -webkit-app-region: drag; /* Note: Only supported in Chromium-based browsers */
-    /* For non-Chromium browsers, consider alternative drag functionality using JavaScript */
-    z-index: 1000;
-}
-
-/* Browser controls */
-.browser-controls {
-    display: flex;
-    align-items: center;
-    padding: 5px;
-    background-color: rgba(25, 25, 25, 0.7);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    -webkit-app-region: no-drag;
-    transition: opacity 0.3s ease;
-    z-index: 100;
-    justify-content: space-between; /* Ensure consistent spacing */
-    gap: 5px; /* Use gap for consistent spacing between elements */
-}
-
-.control-button {
-    background-color: rgba(25, 25, 25, 0.7); /* Match the bar color */
-    color: white;
-    border: none;
-    border-radius: 3px;
-    padding: 5px 8px;
-    margin-right: 0; /* Remove margin, using gap instead */
-    cursor: pointer;
-    transition: background-color 0.2s;
-    height: 30px; /* Set a fixed height */
-}
-
-.control-button:last-child {
-    margin-right: 0; /* Remove margin for the last button */
-}
-
-/* Remove duplicate styling for new-tab-button as it inherits from control-button */
-#new-tab-button {
-    /* No additional styles needed, inherits from .control-button */
-}
-
-.control-button.open-file::before {
-    content: "⩸"; /* Change icon to ⩸ */
-}
-
-.control-button.go::before {
-    content: "➔"; /* Change icon to a thick right arrow */
-}
-
-.control-button:hover {
-    background-color: rgba(45, 45, 45, 0.8); /* Slightly lighter on hover */
-}
-
-.url-container {
-    flex-grow: 1;
-    display: flex;
-    margin: 0;
-    align-items: center;
-    gap: 5px; /* Consistent spacing */
-}
-
-#url-input {
-    flex-grow: 1;
-    background-color: rgba(40, 40, 40, 0.7);
-    color: white;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 3px;
-    padding: 0 5px; /* Reduced padding to help with height */
-    margin-right: 0; /* Remove margin, using gap instead */
-    transition: border-color 0.2s;
-    height: 30px; /* Match button height */
-    box-sizing: border-box; /* Include padding and border in height calculation */
-    line-height: 28px; /* Align text vertically */
-}
-
-/* Ensure the go button has consistent styling with other buttons */
-#go-button {
-    height: 30px;
-    box-sizing: border-box;
-    padding: 5px 10px;
-    margin-right: 0;
 }
 
 /* Webview container */
@@ -110,23 +28,266 @@ body {
     position: relative;
 }
 
+#content-view, 
 #content-webview {
     width: 100%;
-    height: 100%;
+    height: calc(100% - 50px);
     border: none;
     outline: none;
+    background-color: transparent !important;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    will-change: opacity, transform;
+    transition: none;
 }
 
-/* Status bar */
-.status-bar {
-    padding: 2px 5px;
-    background-color: rgba(25, 25, 25, 0.7);
+/* ============================================
+   BROWSER CONTROLS
+   ============================================ */
+/* Browser controls container */
+.controls-container, .browser-controls {
+    display: flex;
+    align-items: center;
+    padding: 8px;
+    background-color: rgba(20, 20, 20, 0.95);
+    color: #fff;
+    z-index: 1001;
+    justify-content: space-between;
+    position: relative;
+    -webkit-app-region: no-drag;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: none;
+    transition: none;
+}
+
+/* Navigation controls group */
+.navigation-controls {
+    display: flex;
+    gap: 8px;
+    margin-left: 85px; /* Space for window controls */
+    -webkit-app-region: no-drag;
+}
+
+/* URL bar container */
+.url-container {
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
+    margin: 0 10px;
+    gap: 5px;
+    -webkit-app-region: no-drag;
+}
+
+#url-input {
+    flex-grow: 1;
+    background-color: rgba(40, 40, 40, 0.7);
     color: white;
-    font-size: 12px;
-    transition: opacity 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+    padding: 6px 10px;
+    height: 30px;
+    box-sizing: border-box;
+    font-size: 14px;
+    -webkit-app-region: no-drag;
 }
 
-/* Resize handles for frameless window */
+/* Window controls group */
+.window-controls {
+    display: flex;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+}
+
+/* ============================================
+   BUTTON STYLING
+   ============================================ */
+/* Common button styles */
+button, 
+.control-button {
+    height: 30px;
+    width: auto;
+    min-width: 40px;
+    background-color: rgba(70, 70, 70, 0.8);
+    color: white;
+    border: none;
+    border-radius: 3px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    transition: background-color 0.2s;
+    -webkit-app-region: no-drag;
+}
+
+button:hover {
+    background-color: rgba(90, 90, 90, 0.8);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Navigation buttons - standardized sizing */
+#back-button,
+#forward-button,
+#reload-button,
+#go-button {
+    width: 40px;
+    min-width: 40px;
+    font-size: 18px;
+    text-align: center;
+    padding: 5px;
+    position: relative;
+}
+
+/* Button symbols using pseudo-elements */
+#back-button::before {
+    content: "‹";
+    display: block;
+    text-align: center;
+    width: 100%;
+    font-size: 22px;
+    line-height: 1;
+}
+
+#forward-button::before {
+    content: "›";
+    display: block;
+    text-align: center;
+    width: 100%;
+    font-size: 22px;
+    line-height: 1;
+}
+
+/* Reload button with states */
+#reload-button.loading::before {
+    content: "×";
+    display: block;
+    text-align: center;
+    width: 100%;
+    font-size: 19px;
+    line-height: 1;
+}
+
+#reload-button:not(.loading)::before {
+    content: "↻";
+    display: block;
+    text-align: center;
+    width: 100%;
+    font-size: 19px;
+    line-height: 1;
+}
+
+#go-button::before {
+    content: "➡︎";
+    display: block;
+    text-align: center;
+    width: 100%;
+    font-size: 18px;
+    line-height: 1;
+}
+
+#new-tab-button::before {
+    content: "+";
+    font-size: 20px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+#new-window-button::before {
+    content: "⊞";
+    font-size: 20px;
+    line-height: 1;
+}
+
+/* Tab and window buttons */
+
+/* ============================================
+   STATUS BAR
+   ============================================ */
+.status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+    background-color: rgba(20, 20, 20, 0.9);
+    color: #fff;
+    font-size: 12px;
+    position: relative;
+    transition: none;
+}
+
+#status-text {
+    position: absolute;
+    left: 0;
+    right: 0;
+    text-align: center;
+    white-space: nowrap;
+    line-height: 20px;
+}
+
+/* ============================================
+   DRAG REGION
+   ============================================ */
+.drag-region {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 30px;
+    width: 100%;
+    -webkit-app-region: drag;
+    z-index: 1000;
+    background-color: rgba(20, 20, 20, 0.95);
+    box-sizing: border-box;
+}
+
+/* ============================================
+   MAC OS WINDOW CONTROLS
+   ============================================ */
+.macos-window-controls {
+    position: absolute;
+    display: flex;
+    top: 8px;
+    left: 10px;
+    height: 12px;
+    z-index: 2000;
+    -webkit-app-region: no-drag;
+    pointer-events: auto;
+}
+
+.macos-window-controls .control {
+    width: 13px;
+    height: 13px;
+    border-radius: 50%;
+    margin-right: 6px;
+    cursor: pointer;
+    border: 0.5px solid rgba(0, 0, 0, 0.2);
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+}
+
+.macos-window-controls .close {
+    background-color: #FF5F56;
+}
+
+.macos-window-controls .minimize {
+    background-color: #FFBD2E;
+}
+
+.macos-window-controls .maximize {
+    background-color: #27C93F;
+}
+
+.macos-window-controls .control:hover {
+    opacity: 0.8;
+}
+
+/* ============================================
+   RESIZE HANDLES
+   ============================================ */
 .resize-handles {
     position: absolute;
     top: 0;
@@ -140,6 +301,7 @@ body {
     position: absolute;
     background-color: transparent;
     pointer-events: auto;
+    z-index: 2000;
 }
 
 .resize-handle-n {
@@ -206,21 +368,79 @@ body {
     cursor: nw-resize;
 }
 
+body.resizing .resize-handle:active {
+    background-color: rgba(0, 120, 215, 0.8);
+    border: 1px solid white;
+}
+
+/* ============================================
+   UI TOGGLE STATE
+   ============================================ */
 /* Hidden UI state */
 .hidden {
     opacity: 0;
+    display: none !important;
+    position: absolute !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
 }
 
-.hidden:hover {
-    opacity: 0; /* Ensure it stays hidden */
-}
-
-/* Remove shadow when UI is hidden */
 body.ui-hidden {
     box-shadow: none;
+    background-color: transparent;
 }
 
-/* White circle from the original CSS */
+body.ui-hidden #content-view, 
+body.ui-hidden #content-webview {
+    height: 100% !important;
+    width: 100% !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    position: absolute !important;
+}
+
+/* ============================================
+   FULLSCREEN MODE
+   ============================================ */
+:fullscreen #content-view, 
+:fullscreen #content-webview,
+::backdrop {
+    background-color: transparent !important;
+}
+
+:fullscreen #content-view, 
+:fullscreen #content-webview {
+    width: 100vw !important;
+    height: 100vh !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+}
+
+/* ============================================
+   RESIZING STATE
+   ============================================ */
+body.resizing #content-view,
+body.resizing #content-webview,
+body.resizing webview {
+    display: none !important;
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+.no-drag {
+    -webkit-app-region: no-drag;
+}
+
+.with-frame {
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Legacy white circle component */
 .white-circle {
     width: 100px;
     height: 100px;
@@ -231,29 +451,4 @@ body.ui-hidden {
     justify-content: center;
     -webkit-app-region: drag;
     user-select: none;
-}
-
-/* Utility classes */
-.no-drag {
-    -webkit-app-region: no-drag;
-}
-
-/* Add styles for whole-window drag and drop */
-body.drag-over-window {
-    box-shadow: inset 0 0 0 3px rgba(100, 180, 255, 0.8);
-}
-
-body.drag-over-window::after {
-    content: "Drop file to open";
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background-color: rgba(40, 40, 60, 0.9);
-    color: white;
-    padding: 15px 25px;
-    border-radius: 8px;
-    font-size: 16px;
-    z-index: 9999;
-    border: 1px solid rgba(100, 180, 255, 0.8);
 }

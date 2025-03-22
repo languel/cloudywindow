@@ -5,34 +5,44 @@
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; script-src 'self'; style-src 'self' 'unsafe-inline'; child-src 'self' file:;">
     <link href="./styles.css" rel="stylesheet">
-    <title>Transparent Browser Overlay</title>
+    <title>CloudyWindow</title>
   </head>
   <body>
     <!-- Main container for all UI components -->
-    <div class="main-container">
+    <div id="app-container">
       <!-- Draggable region for moving the window -->
-      <div class="drag-region"></div>
+      <div class="drag-region">
+        <!-- Add native macOS window controls -->
+        <div class="macos-window-controls">
+          <div class="control close" id="close-button" title="Close"></div>
+          <div class="control minimize" id="minimize-button" title="Minimize"></div>
+          <div class="control maximize" id="maximize-button" title="Maximize"></div>
+        </div>
+      </div>
       
       <!-- Browser navigation controls (toggleable) -->
-      <div class="browser-controls" id="browser-controls">
-        <button id="back-button" title="Go Back" class="control-button"> ‹ </button>
-        <button id="forward-button" title="Go Forward" class="control-button"> › </button>
-        <button id="reload-button" title="Reload" class="control-button">↻</button>
-        <button id="open-file-button" title="Open File (Cmd+O)" class="control-button">⎘</button>
-        <div class="url-container" id="url-container">
-          <input type="text" id="url-input" placeholder="Enter URL or drop file">
-          <button id="go-button" class="control-button">⮕</button>
+      <div id="browser-controls" class="controls-container">
+        <div class="navigation-controls">
+          <button id="back-button" title="Back"></button>
+          <button id="forward-button" title="Forward"></button>
+          <button id="reload-button" title="Reload"></button>
+          <button id="new-tab-button" title="New Tab"></button>
+          <button id="new-window-button" title="New Window"></button>
         </div>
-        <button id="toggle-ui-button" title="Toggle UI" class="control-button">🌫️</button>
-        <button id="toggle-frame-button" title="Reset Window Size" class="control-button">⊞</button>
-        <button id="fullscreen-button" title="Toggle Fullscreen" class="control-button">⛶</button>
-        <button id="new-tab-button" title="New Tab" class="control-button">➕</button>
+        
+        <div class="url-container">
+          <input type="text" id="url-input" placeholder="Enter URL...">
+          <button id="go-button" title="Go"></button>
+        </div>
+        
+        <div class="window-controls">
+          <!-- Removed the frame toggle button -->
+          <!-- Removed custom fullscreen button since we're using native controls -->
+        </div>
       </div>
       
-      <!-- Web content container -->
-      <div class="webview-container">
-        <webview id="content-webview" src="default.html" allowpopups></webview>
-      </div>
+      <!-- Web content container - use a valid initial URL -->
+      <webview id="content-view" src="about:blank" allowpopups></webview>
       
       <!-- Overlay ui for resizing the window when frame is off -->
       <div class="resize-handles">
@@ -48,10 +58,88 @@
       
       <!-- Status indicator -->
       <div class="status-bar" id="status-bar">
-        <span id="status-text">Ready</span>
+        <span id="status-text"></span>
       </div>
     </div>
 
-    <script src="./renderer.js"></script>
+    <script>
+      // Fix the path resolution for default.html
+      document.addEventListener('DOMContentLoaded', () => {
+        const webview = document.getElementById('content-view');
+        if (webview) {
+          try {
+            // First try using location to get the path
+            const currentUrl = window.location.href;
+            console.log('Current location:', currentUrl);
+            
+            // Extract directory path
+            let basePath;
+            if (currentUrl.startsWith('file://')) {
+              // Remove 'file://' and everything after the last '/'
+              basePath = currentUrl.substring(7, currentUrl.lastIndexOf('/'));
+              console.log('Base path from location:', basePath);
+              
+              // Load default.html
+              const defaultUrl = `file://${basePath}/default.html`;
+              console.log('Loading default page:', defaultUrl);
+              webview.src = defaultUrl;
+            } else {
+              // Fallback to a simpler approach using relative path
+              console.log('Using relative path for default.html');
+              webview.src = './default.html';
+            }
+          } catch (error) {
+            console.error('Error setting default path:', error);
+            // Last resort - try a relative path
+            webview.src = './default.html';
+          }
+        }
+      });
+    </script>
+
+    <script src="renderer.js"></script>
+    <script src="debug.js"></script>
+    
+    <!-- Add keyboard shortcut workaround -->
+    <script>
+      // Extra keyboard handler for Cmd+U as a failsafe
+      document.addEventListener('keydown', function(e) {
+        // Check for Cmd+U or Ctrl+U
+        if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'u') {
+          console.log('Direct Cmd+U handler in HTML');
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Try multiple approaches to toggle UI
+          if (window.cwDebug) {
+            window.cwDebug.toggleUI();
+          } else if (window.toggleUI) {
+            window.toggleUI();
+          }
+        }
+      }, true);
+    </script>
+    
+    <!-- Add emergency UI toggle that will work regardless of other issues -->
+    <script>
+      // Double-click anywhere to toggle UI as a last resort
+      document.addEventListener('dblclick', function(e) {
+        console.log('Double-click detected - emergency UI toggle');
+        if (window.cwDebug && window.cwDebug.toggleUI) {
+          window.cwDebug.toggleUI();
+        }
+      });
+      
+      // Add direct Cmd+Shift+U shortcut as a last resort
+      document.addEventListener('keydown', function(e) {
+        if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
+          e.preventDefault();
+          console.log('Cmd+Shift+U detected - emergency UI toggle');
+          if (window.cwDebug && window.cwDebug.toggleUI) {
+            window.cwDebug.toggleUI();
+          }
+        }
+      }, true);
+    </script>
   </body>
 </html>
