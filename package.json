@@ -31,8 +31,19 @@
   "config": {
     "forge": {
       "packagerConfig": {
-        "icon": "⛅︎",
-        "appBundleId": "com.app.cloudywindow"
+        "icon": "./icon",
+        "appBundleId": "com.app.cloudywindow",
+        "platformResources": {
+          "darwin": {
+            "iconIcns": "./icon.icns"
+          },
+          "win32": {
+            "iconIco": "./icon.ico"
+          },
+          "linux": {
+            "icon": "./icon.png"
+          }
+        }
       },
       "makers": [
         {
