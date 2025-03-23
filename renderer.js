@@ -24,53 +24,6 @@ function setBackgroundOpacity(opacity) {
   
   // Apply opacity to the iframe background
   document.body.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
-  
-  // Optional: Display a temporary indicator of current opacity level
-  // showOpacityIndicator();
-}
-
-// Function to display a temporary opacity indicator
-function showOpacityIndicator() {
-  // Check if indicator already exists
-  let indicator = document.getElementById('opacity-indicator');
-  if (!indicator) {
-    // Create indicator element
-    indicator = document.createElement('div');
-    indicator.id = 'opacity-indicator';
-    indicator.style.position = 'absolute';
-    indicator.style.top = '50%';
-    indicator.style.left = '50%';
-    indicator.style.transform = 'translate(-50%, -50%)';
-    indicator.style.padding = '10px 20px';
-    indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-    indicator.style.color = 'white';
-    indicator.style.borderRadius = '5px';
-    indicator.style.fontFamily = 'sans-serif';
-    indicator.style.fontSize = '18px';
-    indicator.style.transition = 'opacity 0.5s ease';
-    indicator.style.zIndex = '2000';
-    document.body.appendChild(indicator);
-  }
-  
-  // Update and show the indicator
-  indicator.textContent = `Opacity: ${Math.round(currentOpacity * 100)}%`;
-  indicator.style.opacity = '1';
-  
-  // Hide the indicator after a delay
-  clearTimeout(window.opacityIndicatorTimeout);
-  window.opacityIndicatorTimeout = setTimeout(() => {
-    indicator.style.opacity = '0';
-  }, 1500);
-}
-
-// Function to decrease opacity (Cmd+[)
-function decreaseOpacity() {
-  setBackgroundOpacity(currentOpacity - OPACITY_STEP);
-}
-
-// Function to increase opacity (Cmd+])
-function increaseOpacity() {
-  setBackgroundOpacity(currentOpacity + OPACITY_STEP);
 }
 
 function navigateToUrl(url) {
@@ -140,7 +93,6 @@ function clearIframeContent() {
 }
 
 // Event Listeners
-
 goButton.addEventListener('click', () => {
     navigateToUrl(urlInput.value);
 });

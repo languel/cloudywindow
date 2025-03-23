@@ -27,5 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     // Add opacity control handlers
     onDecreaseOpacity: (callback) => ipcRenderer.on('decrease-opacity', callback),
-    onIncreaseOpacity: (callback) => ipcRenderer.on('increase-opacity', callback)
+    onIncreaseOpacity: (callback) => ipcRenderer.on('increase-opacity', callback),
+    
+    // Add handler for ignore mouse events changes
+    onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback)
 });

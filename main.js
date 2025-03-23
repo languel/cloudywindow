@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu } = require('electron');
 const path = require('path');
 
 let windows = new Set(); // Track all windows
@@ -17,6 +17,9 @@ function createWindow() {
     }
   });
 
+  // Store click-through state with the window
+  newWindow.isClickThrough = false;
+
   newWindow.loadFile('index.html');
   
   // Add window to our collection
@@ -27,12 +30,35 @@ function createWindow() {
     mainWindow = newWindow;
   }
 
+  // Update window menu when title changes
+  newWindow.on('page-title-updated', updateWindowMenu);
+
   newWindow.on('closed', () => {
     windows.delete(newWindow);
     if (newWindow === mainWindow) {
       mainWindow = windows.size > 0 ? windows.values().next().value : null;
     }
+    updateWindowMenu();
   });
+
+  newWindow.on('focus', () => {
+    // Update View menu when window is focused to reflect this window's state
+    const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+    if (viewMenu) {
+      const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
+      if (clickThroughItem) {
+        clickThroughItem.checked = newWindow.isClickThrough;
+      }
+      const alwaysOnTopItem = viewMenu.submenu.items.find(item => item.label === 'Always on Top');
+      if (alwaysOnTopItem) {
+        alwaysOnTopItem.checked = newWindow.isAlwaysOnTop();
+      }
+    }
+    updateWindowMenu();
+  });
+
+  // Update menu to show new window
+  updateWindowMenu();
 
   return newWindow;
 }
@@ -150,7 +176,294 @@ function positionWindowInQuadrant(win, quadrant) {
   }
 }
 
+// Create application menu
+function createMenu() {
+  const isMac = process.platform === 'darwin';
+  const template = [
+    // App menu (macOS only)
+    ...(isMac ? [{
+      label: app.name,
+      submenu: [
+        { role: 'about' },
+        { type: 'separator' },
+        { role: 'services' },
+        { type: 'separator' },
+        { role: 'hide' },
+        { role: 'hideOthers' },
+        { role: 'unhide' },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    }] : []),
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open File...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('open-file-shortcut');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => createWindow()
+        },
+        isMac ? { role: 'close' } : { role: 'quit' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        {
+          label: 'Always on Top',
+          type: 'checkbox',
+          accelerator: 'Alt+T',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) {
+              win.setAlwaysOnTop(menuItem.checked);
+              updateWindowMenu(); // Update menu immediately
+            }
+          }
+        },
+        {
+          label: 'Click-through Mode',
+          type: 'checkbox',
+          accelerator: 'Alt+M',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) {
+              win.setIgnoreMouseEvents(menuItem.checked, { forward: true });
+              win.webContents.send('ignore-mouse-events-changed', menuItem.checked);
+              updateWindowMenu(); // Update menu immediately
+            }
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Toggle UI',
+          accelerator: 'CmdOrCtrl+U',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('toggle-ui-shortcut');
+          }
+        },
+        {
+          label: 'Toggle URL Bar',
+          accelerator: 'CmdOrCtrl+L',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('toggle-url-bar-shortcut');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Decrease Opacity',
+          accelerator: 'CmdOrCtrl+[',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('decrease-opacity');
+          }
+        },
+        {
+          label: 'Increase Opacity',
+          accelerator: 'CmdOrCtrl+]',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('increase-opacity');
+          }
+        },
+        { type: 'separator' },
+        { role: 'reload', accelerator: 'CmdOrCtrl+R' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [
+        { role: 'minimize' },
+        { role: 'zoom' },
+        { type: 'separator' },
+        {
+          label: 'Move to Center',
+          accelerator: 'Shift+F6',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'center');
+          }
+        },
+        {
+          label: 'Move to Left Half',
+          accelerator: 'Shift+F7',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'left-half');
+          }
+        },
+        {
+          label: 'Move to Top Half',
+          accelerator: 'Shift+F8',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'top-half');
+          }
+        },
+        {
+          label: 'Move to Bottom Half',
+          accelerator: 'Shift+F9',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'bottom-half');
+          }
+        },
+        {
+          label: 'Move to Right Half',
+          accelerator: 'Shift+F10',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'right-half');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Move to Top Left',
+          accelerator: 'Shift+F1',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'top-left');
+          }
+        },
+        {
+          label: 'Move to Top Right',
+          accelerator: 'Shift+F2',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'top-right');
+          }
+        },
+        {
+          label: 'Move to Bottom Left',
+          accelerator: 'Shift+F3',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'bottom-left');
+          }
+        },
+        {
+          label: 'Move to Bottom Right',
+          accelerator: 'Shift+F4',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'bottom-right');
+          }
+        },
+        {
+          label: 'Fill Screen',
+          accelerator: 'Shift+F5',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) positionWindowInQuadrant(win, 'full-screen');
+          }
+        },
+        { type: 'separator' },
+        { role: 'front' },
+        { type: 'separator' },
+      ]
+    }
+  ];
+
+  // Add dynamic window list to Window menu
+  const windowMenu = template.find(item => item.label === 'Window');
+  if (windowMenu && windowMenu.submenu) {
+    // Add a separator if there are any windows
+    if (windows.size > 0) {
+      windowMenu.submenu.push({ type: 'separator' });
+    }
+
+    // Add each window to the menu
+    let windowIndex = 1;
+    for (const win of windows) {
+      const isAlwaysOnTop = win.isAlwaysOnTop();
+      // Fix click-through detection by checking the menu item state instead
+      const viewMenu = Menu.getApplicationMenu().items.find(item => item.label === 'View');
+      const clickThroughItem = viewMenu?.submenu.items.find(item => item.label === 'Click-through Mode');
+      const isClickThrough = clickThroughItem?.checked || false;
+      
+      // Add status indicators at the start of the title
+      let statusIndicators = '';
+      if (isClickThrough) statusIndicators += '👆'; // Click-through first
+      if (isAlwaysOnTop) statusIndicators += '📌'; // Then always-on-top
+      if (statusIndicators) statusIndicators += ' '; // Add space if we have indicators
+      
+      windowMenu.submenu.push({
+        label: `${statusIndicators}Window ${windowIndex}`,
+        type: 'radio',
+        checked: win === BrowserWindow.getFocusedWindow(),
+        click: () => {
+          win.focus();
+        }
+      });
+      windowIndex++;
+    }
+  }
+
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
+
+// Update menu when windows change
+function updateWindowMenu() {
+  createMenu();
+}
+
+// Register keyboard shortcuts for always-on-top and click-through mode
+function setupExtraShortcuts() {
+  globalShortcut.register('Alt+T', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      const isAlwaysOnTop = win.isAlwaysOnTop();
+      win.setAlwaysOnTop(!isAlwaysOnTop);
+      
+      // Update menu checkbox
+      const viewMenu = Menu.getApplicationMenu().items.find(item => item.label === 'View');
+      if (viewMenu) {
+        const alwaysOnTopItem = viewMenu.submenu.items.find(item => item.label === 'Always on Top');
+        if (alwaysOnTopItem) {
+          alwaysOnTopItem.checked = !isAlwaysOnTop;
+        }
+      }
+      updateWindowMenu(); // Update window menu immediately
+    }
+  });
+
+  globalShortcut.register('Alt+M', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.isClickThrough = !win.isClickThrough;
+      win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
+      win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
+      
+      const viewMenu = Menu.getApplicationMenu().items.find(item => item.label === 'View');
+      if (viewMenu) {
+        const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
+        if (clickThroughItem) {
+          clickThroughItem.checked = win.isClickThrough;
+        }
+      }
+      updateWindowMenu(); // Update window menu immediately
+    }
+  });
+}
+
 app.whenReady().then(() => {
+  // Create menu before creating any windows
+  createMenu();
+  setupExtraShortcuts();
+  
   createWindow();
 
   app.on('activate', () => {
@@ -315,3 +628,5 @@ app.on('will-quit', () => {
   // Unregister all shortcuts.
   globalShortcut.unregisterAll();
 });
+
+app.on('browser-window-focus', updateWindowMenu);
