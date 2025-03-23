@@ -85,6 +85,7 @@ The following steps expand on the original plan, incorporating the clarification
 - `#content-frame`: Fills the entire window (`width: 100%`, `height: 100%`, `position: absolute`, `top: 0`, `left: 0`).
 - Dark theme styling for all UI elements.
 - Styling for drag-and-drop and resize handles.
+- Avoid using thansitions because they conflict with transparency/ascii animatin.
 
 ### `main.js`
 
