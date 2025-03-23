@@ -7,9 +7,9 @@
  */
 
 // Elements
-const webview = document.getElementById('content-webview')
-const urlInput = document.getElementById('url-input')
-const goButton = document.getElementById('go-button')
+const webview = document.getElementById('content-webview');
+const urlInput = document.getElementById('url-input');
+const goButton = document.getElementById('go-button');
 const backButton = document.getElementById('back-button')
 const forwardButton = document.getElementById('forward-button')
 const reloadButton = document.getElementById('reload-button')
@@ -29,6 +29,7 @@ let inactivityTimer = null
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+ console.log("DOMContentLoaded")
     setupEventListeners()
     setupResizeHandlers()
     setupDragAndDrop()
@@ -40,6 +41,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Setup all event listeners
 function setupEventListeners() {
+ // Add listener for clear webview shortcut
+ document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'C') {
+   window.electronAPI.clearWebview();
+  }
+ })
     // Navigation buttons
     backButton.addEventListener('click', () => {
         if (webview.canGoBack()) {
@@ -116,8 +123,8 @@ function setupEventListeners() {
     webview.addEventListener('permissionrequest', (e) => {
         // Auto-accept permission requests for demo purposes
         // In a production app, you might want to show a permission dialog
-        if (e.permission === 'media' || 
-            e.permission === 'midi' || 
+        if (e.permission === 'media' ||
+            e.permission === 'midi' ||
             e.permission === 'bluetooth' ||
             e.permission === 'geolocation') {
             e.request.allow()
@@ -133,14 +140,14 @@ function setupEventListeners() {
         toggleUI()
     })
 
-    // Remove unused frame toggle event listeners
-    window.electronAPI.onFrameToggled = null;
+    // Remove unused frame toggle event listeners and clear webview content listener
+ window.electronAPI.onClearWebviewContent = null
 
     // Listen for file selection
     window.electronAPI.onFileSelected((event, filePath) => {
         openLocalFile(filePath)
     })
-    
+
     // Listen for navigation requests from main process
     window.electronAPI.onNavigateTo((event, url) => {
         navigateToUrl(url)
@@ -155,6 +162,13 @@ function setupEventListeners() {
 
     // Reset inactivity timer on mouse movement
     document.removeEventListener('mousemove', resetInactivityTimer)
+}
+
+// Helper function to determine if a file is an image based on its extension
+function isImageFile(filePath) {
+    const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg'];
+    const ext = filePath.substring(filePath.lastIndexOf('.')).toLowerCase();
+    return imageExtensions.includes(ext);
 }
 
 // Setup drag and drop for file opening
@@ -259,28 +273,75 @@ function openLocalFile(filePath) {
     // Create proper file URL
     const fileUrl = `file://${encodeURI(filePath)}`;
     console.log('Attempting to load file:', fileUrl);
-    navigateToUrl(fileUrl);
+
+    if (isImageFile(filePath)) {
+        // Read the image file and display it using a data URL
+        const reader = new FileReader();
+
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.style.maxWidth = '100%'; // Ensure image fits within the window
+            img.style.maxHeight = '100%';
+            img.style.objectFit = 'contain'; // Maintain aspect ratio
+
+            // Create a container div for centering
+            const containerDiv = document.createElement('div');
+            containerDiv.style.display = 'flex';
+            containerDiv.style.justifyContent = 'center';
+            containerDiv.style.alignItems = 'center';
+            containerDiv.style.height = '100%';
+            containerDiv.style.width = '100%';
+            containerDiv.style.overflow = 'hidden'; // Prevent scrollbars if image is too large
+            containerDiv.appendChild(img);
+
+            // Clear current webview content
+            webview.src = 'about:blank';
+
+            // Inject the image into the webview
+            webview.executeJavaScript(`
+                document.body.innerHTML = '';
+                document.body.appendChild(${JSON.stringify(containerDiv.outerHTML)});
+            `);
+        };
+ 
+         // Use electronAPI to read the file data from the main process
+         window.electronAPI.readFileData(filePath).then(base64Data => {
+             if (base64Data) {
+                 img.src = `data:image;base64,${base64Data}`;
+             } else {
+                 console.error('Failed to read image file.');
+                 // Handle the error appropriately, e.g., display a message to the user.
+             }
+         });
+     } else {
+         // If not an image, load the file URL as before
+        navigateToUrl(fileUrl);
+    }
 }
 
 // Navigate to URL with proper formatting
 function navigateToUrl(url) {
-    if (!url) return
-    
+    if (!url) return;
+
+    // Force-clear the webview before loading anything
+    webview.loadURL('about:blank');
+
     // Special case for localhost - prefer HTTP unless HTTPS is explicitly specified
     if (url.includes('localhost') && !url.startsWith('http')) {
-        url = 'http://' + url.replace(/^https?:\/\//i, '')
+        url = 'http://' + url.replace(/^https?:\/\//i, '');
     }
     // Add protocol for non-localhost URLs if missing
     else if (!/^(https?|file):\/\//i.test(url)) {
-        url = 'https://' + url
+        url = 'https://' + url;
     }
-    
-    console.log('Navigating to:', url)
-    webview.src = url
-    urlInput.blur() // Remove focus from input
-    
+
+    console.log('Navigating to:', url);
+    webview.src = url;
+    urlInput.blur(); // Remove focus from input
+
     // Inform main process of URL change for persistence
-    window.electronAPI.updateURL(url)
+    window.electronAPI.updateURL(url);
 }
 
 // Update navigation button states
@@ -292,7 +353,7 @@ function updateNavigationButtons() {
 // Toggle UI visibility - keep this function, but remove auto-hide logic
 function toggleUI() {
     uiVisible = !uiVisible
-    
+
     if (uiVisible) {
         browserControls.classList.remove('hidden')
         statusBar.classList.remove('hidden')
@@ -302,8 +363,24 @@ function toggleUI() {
         statusBar.classList.add('hidden')
         document.body.classList.add('ui-hidden') // Add shadow class
     }
+ webview.invalidate();
+ //webview.reload();
 }
 
+<<<<<<< HEAD
+// Toggle URL bar visibility
+function toggleUrlBar() {
+    const urlContainer = document.getElementById('url-container')
+    urlBarVisible = !urlBarVisible
+
+    if (urlBarVisible) {
+        urlContainer.style.display = 'flex'
+        urlInput.focus()
+        urlInput.select()
+    } else {
+        urlContainer.style.display = 'none'
+    }
+=======
 // Toggle URL bar visibility - replaced with focusUrlBar
 function focusUrlBar() {
   const urlContainer = document.getElementById('url-container')
@@ -321,6 +398,7 @@ function focusUrlBar() {
       urlInput.select()
     }, 10) // Small timeout to ensure the UI has updated
   }
+>>>>>>> origin/c3browser
 }
 
 // Update UI elements based on frame state
@@ -335,7 +413,7 @@ function setupResizeHandlers() {
     const directions = ['n', 'ne', 'e', 'se', 's', 'sw', 'w', 'nw']
     let resizing = false
     let startX, startY, startWidth, startHeight
-    
+
     directions.forEach(dir => {
         const handle = document.querySelector(`.resize-handle-${dir}`)
         
@@ -344,34 +422,54 @@ function setupResizeHandlers() {
             resizing = true
             startX = e.clientX
             startY = e.clientY
-            
+
             // Get current window dimensions
             startWidth = window.innerWidth
             startHeight = window.innerHeight
-            
+
             document.addEventListener('mousemove', handleMouseMove)
             document.addEventListener('mouseup', stopResize)
         })
     })
-    
+
     function handleMouseMove(e) {
         if (!resizing) return
-        
+
         // Calculate new dimensions based on mouse movement and direction
         const deltaX = e.clientX - startX
         const deltaY = e.clientY - startY
-        
+
         // TODO: Implement proper resizing logic for each direction
         // For now, just resize in all directions
         const newWidth = startWidth + deltaX
         const newHeight = startHeight + deltaY
-        
-        window.electronAPI.setWindowSize(newWidth, newHeight)
+
+        window.electronAPI.setWindowSize(newWidth, newHeight);
+  webview.invalidate();
+        //webview.reload(); // Force webview to reload after resizing
     }
-    
+
     function stopResize() {
         resizing = false
         document.removeEventListener('mousemove', handleMouseMove)
         document.removeEventListener('mouseup', stopResize)
     }
+}
+
+// Function to simulate a fullscreen toggle
+function toggleFullscreen() {
+ if (mainWindow) {
+ const currentState = mainWindow.isFullScreen();
+ mainWindow.setFullScreen(!currentState);
+ setTimeout(() => {
+ mainWindow.setFullScreen(currentState);
+ }, 100); // Toggle back after 100ms
+ }
+}
+
+// Function to clear webview content
+function clearWebviewContent() {
+ console.log('Clearing webview content.');
+ webview.invalidate();
+    webview.executeJavaScript('document.body.innerHTML = ""');
 }
