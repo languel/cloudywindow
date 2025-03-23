@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen } = require('electron');
 const path = require('path');
 
 let windows = new Set(); // Track all windows
@@ -51,6 +51,102 @@ function closeCurrentWindow() {
   const focusedWindow = BrowserWindow.getFocusedWindow();
   if (focusedWindow) {
     focusedWindow.close();
+  }
+}
+
+// Position window in a specific quadrant of the screen
+function positionWindowInQuadrant(win, quadrant) {
+  if (!win) return;
+  
+  // Get the primary display's work area (screen size minus taskbar/dock)
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const halfWidth = Math.floor(workArea.width / 2);
+  const halfHeight = Math.floor(workArea.height / 2);
+  
+  switch (quadrant) {
+    case 'top-left':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'top-right':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-left':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y + halfHeight, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-right':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y + halfHeight, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'top-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: workArea.width, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y + halfHeight, 
+        width: workArea.width, 
+        height: halfHeight 
+      });
+      break;
+    case 'left-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: workArea.height 
+      });
+      break;
+    case 'right-half':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: workArea.height 
+      });
+      break;
+    case 'full-screen':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: workArea.width, 
+        height: workArea.height 
+      });
+      break;
+    case 'center':
+      // Center the window with 2/3 of screen size
+      const centerWidth = Math.floor(workArea.width * 2/3);
+      const centerHeight = Math.floor(workArea.height * 2/3);
+      win.setBounds({
+        x: workArea.x + Math.floor((workArea.width - centerWidth) / 2),
+        y: workArea.y + Math.floor((workArea.height - centerHeight) / 2),
+        width: centerWidth,
+        height: centerHeight
+      });
+      break;
   }
 }
 
@@ -111,6 +207,71 @@ app.whenReady().then(() => {
   globalShortcut.register('CommandOrControl+G', () => {
     const win = BrowserWindow.getFocusedWindow();
     if (win) win.webContents.send('go-to-url');
+  });
+
+  // Replace Cmd+Shift+number shortcuts with fn+shift+arrow combinations
+  // Half-screen positioning
+  globalShortcut.register('Shift+F8', () => { // fn+shift+up arrow
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'top-half');
+  });
+
+  globalShortcut.register('Shift+F9', () => { // fn+shift+down arrow
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'bottom-half');
+  });
+
+  globalShortcut.register('Shift+F7', () => { // fn+shift+left arrow
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'left-half');
+  });
+
+  globalShortcut.register('Shift+F10', () => { // fn+shift+right arrow
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'right-half');
+  });
+
+  // Quarter-screen positioning (using function keys as logical mapping)
+  globalShortcut.register('Shift+F1', () => { // fn+shift+F1 (top-left)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'top-left');
+  });
+
+  globalShortcut.register('Shift+F2', () => { // fn+shift+F2 (top-right)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'top-right');
+  });
+
+  globalShortcut.register('Shift+F3', () => { // fn+shift+F3 (bottom-left)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'bottom-left');
+  });
+
+  globalShortcut.register('Shift+F4', () => { // fn+shift+F4 (bottom-right)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'bottom-right');
+  });
+
+  // Full screen and center positioning
+  globalShortcut.register('Shift+F5', () => { // fn+shift+F5 (full-screen)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'full-screen');
+  });
+
+  globalShortcut.register('Shift+F6', () => { // fn+shift+F6 (center)
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) positionWindowInQuadrant(win, 'center');
+  });
+
+  // Add keyboard shortcuts for opacity control
+  globalShortcut.register('CommandOrControl+[', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.webContents.send('decrease-opacity');
+  });
+
+  globalShortcut.register('CommandOrControl+]', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.webContents.send('increase-opacity');
   });
 });
 

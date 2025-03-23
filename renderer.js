@@ -10,6 +10,69 @@ const closeWindowButton = document.getElementById('close-window-button');
 const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 
+// Add variables to track window opacity
+let currentOpacity = 0.5; // Default opacity: 50%
+const MIN_OPACITY = 0.1;  // Minimum opacity: 10% (to prevent completely invisible window)
+const MAX_OPACITY = 1.0;  // Maximum opacity: 100%
+const OPACITY_STEP = 0.1; // Step for each adjustment: 10%
+
+// Function to set the background opacity
+function setBackgroundOpacity(opacity) {
+  // Ensure opacity is within bounds
+  opacity = Math.max(MIN_OPACITY, Math.min(MAX_OPACITY, opacity));
+  currentOpacity = opacity;
+  
+  // Apply opacity to the iframe background
+  document.body.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
+  
+  // Optional: Display a temporary indicator of current opacity level
+  showOpacityIndicator();
+}
+
+// Function to display a temporary opacity indicator
+function showOpacityIndicator() {
+  // Check if indicator already exists
+  let indicator = document.getElementById('opacity-indicator');
+  if (!indicator) {
+    // Create indicator element
+    indicator = document.createElement('div');
+    indicator.id = 'opacity-indicator';
+    indicator.style.position = 'absolute';
+    indicator.style.top = '50%';
+    indicator.style.left = '50%';
+    indicator.style.transform = 'translate(-50%, -50%)';
+    indicator.style.padding = '10px 20px';
+    indicator.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    indicator.style.color = 'white';
+    indicator.style.borderRadius = '5px';
+    indicator.style.fontFamily = 'sans-serif';
+    indicator.style.fontSize = '18px';
+    indicator.style.transition = 'opacity 0.5s ease';
+    indicator.style.zIndex = '2000';
+    document.body.appendChild(indicator);
+  }
+  
+  // Update and show the indicator
+  indicator.textContent = `Opacity: ${Math.round(currentOpacity * 100)}%`;
+  indicator.style.opacity = '1';
+  
+  // Hide the indicator after a delay
+  clearTimeout(window.opacityIndicatorTimeout);
+  window.opacityIndicatorTimeout = setTimeout(() => {
+    indicator.style.opacity = '0';
+  }, 1500);
+}
+
+// Function to decrease opacity (Cmd+[)
+function decreaseOpacity() {
+  setBackgroundOpacity(currentOpacity - OPACITY_STEP);
+}
+
+// Function to increase opacity (Cmd+])
+function increaseOpacity() {
+  setBackgroundOpacity(currentOpacity + OPACITY_STEP);
+}
+
 function navigateToUrl(url) {
   console.log('navigateToUrl called with:', url);
   if (!url) return;
@@ -166,3 +229,15 @@ window.electronAPI.onGoToUrl(() => {
   // Navigate to the URL in the input field even if UI is hidden
   navigateToUrl(urlInput.value);
 });
+
+// Add event listeners for the opacity control shortcuts
+window.electronAPI.onDecreaseOpacity(() => {
+  decreaseOpacity();
+});
+
+window.electronAPI.onIncreaseOpacity(() => {
+  increaseOpacity();
+});
+
+// Initialize opacity
+setBackgroundOpacity(currentOpacity);

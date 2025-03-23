@@ -23,5 +23,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     
     loadURL: (url) => ipcRenderer.send('load-url', url),
     
-    onReloadContent: (callback) => ipcRenderer.on('reload-content', callback)
+    onReloadContent: (callback) => ipcRenderer.on('reload-content', callback),
+    
+    // Add opacity control handlers
+    onDecreaseOpacity: (callback) => ipcRenderer.on('decrease-opacity', callback),
+    onIncreaseOpacity: (callback) => ipcRenderer.on('increase-opacity', callback)
 });
