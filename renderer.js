@@ -11,8 +11,8 @@ const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 
 // Add variables to track window opacity
-let currentOpacity = 0.5; // Default opacity: 50%
-const MIN_OPACITY = 0.1;  // Minimum opacity: 10% (to prevent completely invisible window)
+let currentOpacity = 0.0; // Default opacity: 50%
+const MIN_OPACITY = 0.0;  // Minimum opacity: 10% (to prevent completely invisible window)
 const MAX_OPACITY = 1.0;  // Maximum opacity: 100%
 const OPACITY_STEP = 0.1; // Step for each adjustment: 10%
 
@@ -26,7 +26,7 @@ function setBackgroundOpacity(opacity) {
   document.body.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
   
   // Optional: Display a temporary indicator of current opacity level
-  showOpacityIndicator();
+  // showOpacityIndicator();
 }
 
 // Function to display a temporary opacity indicator
@@ -124,9 +124,9 @@ function handleFileDrop(event) {
 function toggleUI() {
   if (uiContainer.style.visibility === 'hidden' || uiContainer.style.visibility === '') {
     uiContainer.style.visibility = 'visible';
-    uiContainer.style.backgroundColor = 'rgba(0, 0, 0, .1)'; // Semi-transparent background
+    uiContainer.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Semi-transparent background
   } else {
-    // uiContainer.style.backgroundColor = 'transparent';
+    uiContainer.style.backgroundColor = 'transparent';
     uiContainer.style.visibility = 'hidden';
   }
 }
