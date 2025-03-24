@@ -245,7 +245,10 @@ function createMenu() {
       submenu: [
         { role: 'reload' },
         { role: 'forceReload' },
-        { role: 'toggleDevTools' },
+        { 
+          role: 'toggleDevTools',
+          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I'
+        },
         { type: 'separator' },
         { role: 'resetZoom' },
         { role: 'zoomIn' },
