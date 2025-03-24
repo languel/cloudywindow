@@ -333,23 +333,98 @@ function createMenu() {
         ]),
         { type: 'separator' },
         {
-          label: 'Move to Center',
+          label: 'Center Window',
           accelerator: 'Shift+F6',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) positionWindowInQuadrant(win, 'center');
           }
         },
+        { type: 'separator' },
         {
-          label: 'Move to Left Half',
-          accelerator: 'Shift+F7',
+          label: 'Fill Screen',
+          accelerator: 'Shift+F5',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
-            if (win) positionWindowInQuadrant(win, 'left-half');
+            if (win) positionWindowInQuadrant(win, 'full-screen');
           }
         },
-        // Your existing window positioning items
-        // ... (keep all your existing window positioning items)
+        { type: 'separator' },
+        {
+          label: 'Half-Screen Positioning',
+          submenu: [
+            {
+              label: 'Left Half',
+              accelerator: 'Shift+F7',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'left-half');
+              }
+            },
+            {
+              label: 'Right Half',
+              accelerator: 'Shift+F10',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'right-half');
+              }
+            },
+            {
+              label: 'Top Half',
+              accelerator: 'Shift+F8',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-half');
+              }
+            },
+            {
+              label: 'Bottom Half',
+              accelerator: 'Shift+F9',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-half');
+              }
+            }
+          ]
+        },
+        {
+          label: 'Quarter-Screen Positioning',
+          submenu: [
+            {
+              label: 'Top Left',
+              accelerator: 'Shift+F1',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-left');
+              }
+            },
+            {
+              label: 'Top Right',
+              accelerator: 'Shift+F2',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-right');
+              }
+            },
+            {
+              label: 'Bottom Left',
+              accelerator: 'Shift+F3',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-left');
+              }
+            },
+            {
+              label: 'Bottom Right',
+              accelerator: 'Shift+F4',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-right');
+              }
+            }
+          ]
+        }
+        // ... keep dynamic window list code after this
       ]
     },
     {
