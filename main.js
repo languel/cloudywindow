@@ -36,7 +36,8 @@ function createWindow() {
     height: 600,
     transparent: true,
     frame: false,
-    backgroundColor: '#00000000',
+    backgroundColor: '#00000001',
+    hasShadow: false,
     icon: appIcon || undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -382,6 +383,14 @@ function createMenu() {
           }
         },
         {
+          label: 'Pre‑Draw Hard Flush',
+          type: 'checkbox',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('pre-draw-flush-toggle', menuItem.checked);
+          }
+        },
+        {
           label: 'Canvas Safe Mode (disable accelerated 2D)',
           type: 'checkbox',
           click: (menuItem) => {
@@ -478,6 +487,33 @@ function createMenu() {
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('increase-overall-opacity');
+              }
+            }
+          ]
+        },
+        {
+          label: 'Window Background Alpha',
+          submenu: [
+            {
+              label: 'Transparent (0%)',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { 
+                  win.setBackgroundColor('#00000000');
+                  win.webContents.send('window-bg-alpha', 0);
+                  win.webContents.send('hard-flush'); 
+                }
+              }
+            },
+            {
+              label: 'Near Transparent (1%)',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { 
+                  win.setBackgroundColor('#00000001'); 
+                  win.webContents.send('window-bg-alpha', 1);
+                  // no immediate flush needed; let changes settle
+                }
               }
             }
           ]

@@ -12,6 +12,9 @@ const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
 const contentRoot = document.getElementById('content-root');
+// Pre‑draw flush toggle (persisted)
+let preDrawFlushEnabled = false;
+try { preDrawFlushEnabled = localStorage.getItem('preDrawFlushEnabled') === '1'; } catch (_) {}
 
 // Add variables to track window opacity
 let currentOpacity = 0.0; // Default opacity: fully transparent
@@ -69,6 +72,11 @@ function navigateToUrl(url) {
         iframe.setAttribute('preload', absPreload);
       }
     } catch (_) {}
+    if (preDrawFlushEnabled) {
+      // Hide before navigation to prevent stale frames
+      iframe.style.display = 'none';
+      iframe.dataset.preflush = '1';
+    }
     if (typeof iframe.loadURL === 'function') {
       iframe.loadURL(fullUrl);
     } else {
@@ -265,6 +273,12 @@ function hardFlushWebview() {
   });
 }
 
+// Toggle from menu to persist pre‑draw flush behavior
+window.electronAPI.onPreDrawFlushToggle && window.electronAPI.onPreDrawFlushToggle((_e, enabled) => {
+  preDrawFlushEnabled = !!enabled;
+  try { localStorage.setItem('preDrawFlushEnabled', preDrawFlushEnabled ? '1' : '0'); } catch (_) {}
+});
+
 // Event Listeners
 goButton.addEventListener('click', () => {
     navigateToUrl(urlInput.value);
@@ -431,7 +445,10 @@ window.electronAPI.onIncreaseOpacity(() => {
 // Set background opacity directly from menu (0, 0.5, 1)
 window.electronAPI.onSetBgOpacity && window.electronAPI.onSetBgOpacity((_e, value) => {
   const v = typeof value === 'number' ? value : parseFloat(value);
-  if (!Number.isNaN(v)) setBackgroundOpacity(v);
+  if (!Number.isNaN(v)) {
+    setBackgroundOpacity(v);
+    scheduleFlush();
+  }
 });
 
 // Overall opacity of content (webview + backdrop) via container, not OS window
@@ -441,14 +458,13 @@ function setOverallOpacity(v) {
   overallOpacity = clamp01(v);
   if (iframe) iframe.style.opacity = String(overallOpacity);
   setBackgroundOpacity(overallOpacity);
-  // Ensure compositor drops any stale cache
-  hardFlushWebview();
+  scheduleFlush();
 }
 function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }
 
 window.electronAPI.onSetOverallOpacity && window.electronAPI.onSetOverallOpacity((_e, v) => setOverallOpacity(typeof v === 'number' ? v : parseFloat(v)));
-window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => { incOverallOpacity(+0.1); hardFlushWebview(); });
-window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => { incOverallOpacity(-0.1); hardFlushWebview(); });
+window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => { incOverallOpacity(+0.1); scheduleFlush(); });
+window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => { incOverallOpacity(-0.1); scheduleFlush(); });
 
 // Shortcuts from menu
 window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {
@@ -466,6 +482,23 @@ window.electronAPI.onFlashBorder && window.electronAPI.onFlashBorder(() => {
 window.electronAPI.onHardFlush && window.electronAPI.onHardFlush(() => {
   hardFlushWebview();
 });
+
+// Flush policy: if window background alpha is 0 (fully transparent), we may need
+// to hard flush; if near‑transparent (1%), avoid extra flushes to reduce flashing.
+let flushOnOpacityChange = false; // computed from window bg alpha
+window.electronAPI.onWindowBgAlpha && window.electronAPI.onWindowBgAlpha((_e, a) => {
+  flushOnOpacityChange = (Number(a) === 0);
+});
+
+let flushTimer = null;
+function scheduleFlush(delay = 100) {
+  if (!flushOnOpacityChange) return; // skip if near‑transparent alpha is active
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => {
+    hardFlushWebview();
+    flushTimer = null;
+  }, delay);
+}
 
 // Initialize opacity
 setBackgroundOpacity(currentOpacity);
@@ -516,6 +549,15 @@ if (iframe) {
       if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
     } catch (_) {}
     injectSiteCSS(currentUrl || '');
+    // Show after content is ready if we hid before navigation
+    if (iframe.dataset.preflush === '1') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          iframe.style.display = '';
+          iframe.dataset.preflush = '0';
+        });
+      });
+    }
   });
   iframe.addEventListener('did-fail-load', (e) => {
     console.warn('Content failed to load', e.errorCode, e.errorDescription, e.validatedURL);
