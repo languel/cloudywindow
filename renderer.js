@@ -11,6 +11,7 @@ const closeWindowButton = document.getElementById('close-window-button');
 const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
+const contentRoot = document.getElementById('content-root');
 
 // Add variables to track window opacity
 let currentOpacity = 0.0; // Default opacity: fully transparent
@@ -415,6 +416,21 @@ window.electronAPI.onSetBgOpacity && window.electronAPI.onSetBgOpacity((_e, valu
   const v = typeof value === 'number' ? value : parseFloat(value);
   if (!Number.isNaN(v)) setBackgroundOpacity(v);
 });
+
+// Overall opacity of content (webview + backdrop) via container, not OS window
+let overallOpacity = 1.0;
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+function setOverallOpacity(v) {
+  overallOpacity = clamp01(v);
+  if (contentRoot) contentRoot.style.opacity = String(overallOpacity);
+  // Nudge webview to avoid afterburn artifacts
+  forceIframeRedraw();
+}
+function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }
+
+window.electronAPI.onSetOverallOpacity && window.electronAPI.onSetOverallOpacity((_e, v) => setOverallOpacity(typeof v === 'number' ? v : parseFloat(v)));
+window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => incOverallOpacity(+0.1));
+window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => incOverallOpacity(-0.1));
 
 // Shortcuts from menu
 window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {

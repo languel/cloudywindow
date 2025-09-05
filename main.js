@@ -428,7 +428,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.setOpacity(0.0);
+                if (win) win.webContents.send('set-overall-opacity', 0.0);
               }
             },
             {
@@ -436,7 +436,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.setOpacity(0.5);
+                if (win) win.webContents.send('set-overall-opacity', 0.5);
               }
             },
             {
@@ -444,7 +444,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.setOpacity(1.0);
+                if (win) win.webContents.send('set-overall-opacity', 1.0);
               }
             },
             { type: 'separator' },
@@ -453,11 +453,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Alt+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) {
-                  const cur = typeof win.getOpacity === 'function' ? win.getOpacity() : 1;
-                  const next = Math.max(0.0, Math.min(1.0, cur - 0.1));
-                  win.setOpacity(next);
-                }
+                if (win) win.webContents.send('decrease-overall-opacity');
               }
             },
             {
@@ -465,11 +461,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Alt+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) {
-                  const cur = typeof win.getOpacity === 'function' ? win.getOpacity() : 1;
-                  const next = Math.max(0.0, Math.min(1.0, cur + 0.1));
-                  win.setOpacity(next);
-                }
+                if (win) win.webContents.send('increase-overall-opacity');
               }
             }
           ]

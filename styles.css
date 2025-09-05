@@ -4,6 +4,12 @@ body {
     overflow: hidden; /* Hide scrollbars */
 }
 
+#content-root {
+    position: absolute;
+    inset: 0;
+    opacity: 1;
+}
+
 #ui-container {
     position: absolute;
     top: 0;

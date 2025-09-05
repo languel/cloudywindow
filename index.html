@@ -9,8 +9,10 @@
 <body>
     <!-- Invisible drag region so the window is movable when UI is hidden -->
     <div id="drag-region"></div>
-    <!-- Backdrop tint layer (behind content) -->
-    <div id="backdrop"></div>
+    <!-- Content root wraps backdrop + webview so we can set overall opacity -->
+    <div id="content-root">
+      <!-- Backdrop tint layer (behind content) -->
+      <div id="backdrop"></div>
     <div id="ui-container">
         <input type="text" id="url-input" placeholder="Enter URL or drop file">
         <button id="go-button" title="Go">➠</button>
@@ -22,11 +24,11 @@
         <button id="toggle-ui-button" title="Hide UI">−</button>
         <button id="close-window-button" title="Close Window">×</button>
     </div>
-    <!-- Drop overlay (appears during drag) -->
-    <div id="drop-overlay"><div class="drop-hint">Drop file or URL</div></div>
+      <!-- Drop overlay (appears during drag) -->
+      <div id="drop-overlay"><div class="drop-hint">Drop file or URL</div></div>
 
-    <!-- Frameless resize handles overlay -->
-    <div id="resize-overlay">
+      <!-- Frameless resize handles overlay -->
+      <div id="resize-overlay">
         <div class="resize-handle edge top" id="resize-top"></div>
         <div class="resize-handle edge right" id="resize-right"></div>
         <div class="resize-handle edge bottom" id="resize-bottom"></div>
@@ -35,10 +37,11 @@
         <div class="resize-handle corner top-right" id="resize-top-right"></div>
         <div class="resize-handle corner bottom-right" id="resize-bottom-right"></div>
         <div class="resize-handle corner bottom-left" id="resize-bottom-left"></div>
+      </div>
+      <!-- Frame flash overlay for quick orientation -->
+      <div id="frame-flash"></div>
+      <webview id="content-frame" src="default-cloud.html" style="position:absolute;inset:0;will-change:transform;backface-visibility:hidden;transform:translateZ(0);" preload="./webview-preload.js"></webview>
     </div>
-    <!-- Frame flash overlay for quick orientation -->
-    <div id="frame-flash"></div>
-    <webview id="content-frame" src="default-cloud.html" style="position:absolute;inset:0;will-change:transform;backface-visibility:hidden;transform:translateZ(0);" preload="./webview-preload.js"></webview>
     <script src="./renderer.js"></script>
 </body>
 </html>
