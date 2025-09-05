@@ -294,7 +294,9 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "icon": "node scripts/gen-icon.js",
     "prebuild": "node scripts/gen-icon.js || echo 'icon generation skipped'",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "clean": "git clean -fdX",
+    "clean:dry": "git clean -fdXn"
   },
   "repository": {
     "type": "git",
