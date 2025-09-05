@@ -31,5 +31,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onFlashBorder: (callback) => ipcRenderer.on('flash-border', callback),
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
-    openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog')
+    openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+    // Provide absolute path to webview preload script
+    getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
 });

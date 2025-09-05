@@ -57,7 +57,18 @@ function navigateToUrl(url) {
     if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
         fullUrl = 'http://' + url;
     }
-    iframe.src = fullUrl;
+    // Ensure webview has a valid absolute preload path
+    try {
+      const absPreload = window.electronAPI.getWebviewPreloadPath && window.electronAPI.getWebviewPreloadPath();
+      if (absPreload && !iframe.getAttribute('preload')) {
+        iframe.setAttribute('preload', absPreload);
+      }
+    } catch (_) {}
+    if (typeof iframe.loadURL === 'function') {
+      iframe.loadURL(fullUrl);
+    } else {
+      iframe.src = fullUrl;
+    }
     urlInput.value = fullUrl;
 }
 
@@ -437,6 +448,13 @@ if (iframe) {
     let currentUrl = '';
     try { currentUrl = iframe.getURL ? iframe.getURL() : iframe.src; } catch (_) {}
     injectSiteCSS(currentUrl || '');
+  });
+  iframe.addEventListener('did-fail-load', (e) => {
+    console.warn('Content failed to load', e.errorCode, e.errorDescription, e.validatedURL);
+  });
+  iframe.addEventListener('did-navigate', (_e) => {
+    // Update URL bar with current location
+    try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
   });
   // Bridge DnD events coming from the guest page via preload
   iframe.addEventListener('ipc-message', (event) => {
