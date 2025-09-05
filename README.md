@@ -47,8 +47,8 @@ A transparent, borderless browser overlay built with Electron.
   - Background opacity: `Opt+Shift+0/5/1`, step `Opt+Shift+[ / ]`
   - Overall (content) opacity: `Cmd+Shift+5/1`, step `Cmd+Alt+[ / ]`
   - BG 0% only: `Cmd+Shift+0`
-  - `Alt+T` — Toggle Always‑on‑Top
-  - `Alt+M` — Toggle Click‑through mode
+  - `Opt+Shift+T` — Toggle Always‑on‑Top
+  - `Opt+Shift+M` — Toggle Click‑through mode (global; recovery)
   - `Shift+F9` — Bottom‑right 1/16 size (1/4×1/4)
 
 ## Packaging

@@ -342,7 +342,7 @@ function createMenu() {
         {
           label: 'Always on Top',
           type: 'checkbox',
-          accelerator: 'Alt+T',
+          accelerator: 'Alt+Shift+T',
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -354,7 +354,7 @@ function createMenu() {
         {
           label: 'Click-through Mode',
           type: 'checkbox',
-          accelerator: 'Alt+M',
+          accelerator: 'Alt+Shift+M',
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -736,6 +736,22 @@ app.whenReady().then(async () => {
   
   ipcMain.on('close-window', () => {
     closeCurrentWindow();
+  });
+
+  // Global recovery shortcut: toggle click-through even when window can't get mouse focus
+  globalShortcut.register('Alt+Shift+M', () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0];
+    if (win) {
+      win.isClickThrough = !win.isClickThrough;
+      win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
+      win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
+      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+      if (viewMenu) {
+        const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
+        if (clickThroughItem) clickThroughItem.checked = win.isClickThrough;
+      }
+      updateWindowMenu();
+    }
   });
 
   // Removed global Alt+M (menu accelerator provides the shortcut and shows it visibly)
