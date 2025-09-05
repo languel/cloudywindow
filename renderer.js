@@ -43,8 +43,9 @@ function increaseOpacity() {
 // Force the iframe to re-composite to avoid transparency artifacts on some GPUs
 function forceIframeRedraw() {
   if (!iframe) return;
-  const prev = iframe.style.transform;
-  iframe.style.transform = 'translateZ(0)';
+  const prev = iframe.style.transform || '';
+  // Nudge compositor: brief scale tweak + translateZ
+  iframe.style.transform = prev + ' translateZ(0) scale(1.0001)';
   requestAnimationFrame(() => {
     iframe.style.transform = prev || '';
   });
@@ -446,6 +447,24 @@ function injectSiteCSS(url) {
       .tl-background,canvas,svg{background:transparent!important}
     `;
     try { iframe.insertCSS(css); } catch (_) {}
+  }
+
+  // Strudel (strudel.cc / tidal strudel): try to make background transparent
+  if (u.includes('strudel')) {
+    const css = `
+      html,body,#root,#app,.app,.container,.editor-container,.visualizer,.scene { background: transparent !important; }
+      .blackscreen,.whitescreen,.greenscreen { background: transparent !important; }
+      canvas,svg { background: transparent !important; }
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+    // Additionally, strip common theme classes that force solid bg
+    try {
+      iframe.executeJavaScript(`(function(){
+        const rm = ['blackscreen','whitescreen','greenscreen'];
+        document.documentElement && document.documentElement.classList && document.documentElement.classList.remove(...rm);
+        document.body && document.body.classList && document.body.classList.remove(...rm);
+      })();`);
+    } catch (_) {}
   }
 }
 

@@ -379,6 +379,7 @@ function createMenu() {
           submenu: [
             {
               label: '0% (fully transparent)',
+              accelerator: 'Alt+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('set-bg-opacity', 0.0);
@@ -386,6 +387,7 @@ function createMenu() {
             },
             {
               label: '50%',
+              accelerator: 'Alt+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('set-bg-opacity', 0.5);
@@ -393,6 +395,7 @@ function createMenu() {
             },
             {
               label: '100%',
+              accelerator: 'Alt+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('set-bg-opacity', 1.0);
@@ -400,16 +403,16 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Cmd+[)',
-              accelerator: 'CmdOrCtrl+[',
+              label: 'Decrease (Opt+Shift+[)',
+              accelerator: 'Alt+Shift+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('decrease-opacity');
               }
             },
             {
-              label: 'Increase (Cmd+])',
-              accelerator: 'CmdOrCtrl+]',
+              label: 'Increase (Opt+Shift+])',
+              accelerator: 'Alt+Shift+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('increase-opacity');
@@ -422,6 +425,7 @@ function createMenu() {
           submenu: [
             {
               label: '0% (fully transparent) — caution',
+              accelerator: 'CmdOrCtrl+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.setOpacity(0.0);
@@ -429,6 +433,7 @@ function createMenu() {
             },
             {
               label: '50%',
+              accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.setOpacity(0.5);
@@ -436,6 +441,7 @@ function createMenu() {
             },
             {
               label: '100%',
+              accelerator: 'CmdOrCtrl+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.setOpacity(1.0);
@@ -471,7 +477,7 @@ function createMenu() {
         { type: 'separator' },
         {
           label: 'Toggle UI',
-          accelerator: 'CmdOrCtrl+U',
+          accelerator: 'CmdOrCtrl+Alt+U',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('toggle-ui-shortcut');
