@@ -409,6 +409,12 @@ window.electronAPI.onIncreaseOpacity(() => {
   increaseOpacity();
 });
 
+// Set background opacity directly from menu (0, 0.5, 1)
+window.electronAPI.onSetBgOpacity && window.electronAPI.onSetBgOpacity((_e, value) => {
+  const v = typeof value === 'number' ? value : parseFloat(value);
+  if (!Number.isNaN(v)) setBackgroundOpacity(v);
+});
+
 // Shortcuts from menu
 window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {
   const folder = await window.electronAPI.openFolderDialog();

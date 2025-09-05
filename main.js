@@ -375,6 +375,101 @@ function createMenu() {
         },
         { type: 'separator' },
         {
+          label: 'Background Opacity',
+          submenu: [
+            {
+              label: '0% (fully transparent)',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('set-bg-opacity', 0.0);
+              }
+            },
+            {
+              label: '50%',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('set-bg-opacity', 0.5);
+              }
+            },
+            {
+              label: '100%',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('set-bg-opacity', 1.0);
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Decrease (Cmd+[)',
+              accelerator: 'CmdOrCtrl+[',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('decrease-opacity');
+              }
+            },
+            {
+              label: 'Increase (Cmd+])',
+              accelerator: 'CmdOrCtrl+]',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('increase-opacity');
+              }
+            }
+          ]
+        },
+        {
+          label: 'Overall Opacity',
+          submenu: [
+            {
+              label: '0% (fully transparent) — caution',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.setOpacity(0.0);
+              }
+            },
+            {
+              label: '50%',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.setOpacity(0.5);
+              }
+            },
+            {
+              label: '100%',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.setOpacity(1.0);
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Decrease (Cmd+Alt+[)',
+              accelerator: 'CmdOrCtrl+Alt+[',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) {
+                  const cur = typeof win.getOpacity === 'function' ? win.getOpacity() : 1;
+                  const next = Math.max(0.0, Math.min(1.0, cur - 0.1));
+                  win.setOpacity(next);
+                }
+              }
+            },
+            {
+              label: 'Increase (Cmd+Alt+])',
+              accelerator: 'CmdOrCtrl+Alt+]',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) {
+                  const cur = typeof win.getOpacity === 'function' ? win.getOpacity() : 1;
+                  const next = Math.max(0.0, Math.min(1.0, cur + 0.1));
+                  win.setOpacity(next);
+                }
+              }
+            }
+          ]
+        },
+        { type: 'separator' },
+        {
           label: 'Toggle UI',
           accelerator: 'CmdOrCtrl+U',
           click: () => {
@@ -398,23 +493,7 @@ function createMenu() {
             if (win) win.webContents.send('go-to-url');
           }
         },
-        { type: 'separator' },
-        {
-          label: 'Decrease Opacity',
-          accelerator: 'CmdOrCtrl+[',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('decrease-opacity');
-          }
-        },
-        {
-          label: 'Increase Opacity',
-          accelerator: 'CmdOrCtrl+]',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('increase-opacity');
-          }
-        }
+        
       ]
     },
     {
