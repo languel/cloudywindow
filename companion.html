@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cloudy Companion Demo</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: transparent; /* allow window transparency to show through */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-app-region: no-drag;
+        overflow: hidden;
+      }
+      #sketch-holder {
+        position: absolute;
+        inset: 0;
+      }
+      /* Minimal helper text */
+      .hint {
+        position: absolute;
+        bottom: 14px;
+        left: 14px;
+        color: rgba(255,255,255,0.92);
+        font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial;
+        font-size: 12px;
+        background: rgba(0,0,0,0.25);
+        padding: 6px 10px;
+        border-radius: 10px;
+        /* Avoid backdrop-filter to prevent compositor artifacts on transparent windows */
+        /* backdrop-filter: blur(6px); */
+        letter-spacing: 0.2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sketch-holder"></div>
+    <div class="hint">Drag to doodle • Double-click to clear • Eyes follow you</div>
+
+    <!-- p5.js from CDN (works in local file iframe) -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
+    <script>
+      // Cloudy companion p5 sketch (prettier, smoother)
+      let doodles = [];
+      let currentStroke = null;
+      let cloud = { cx: 0, cy: 0, w: 0, h: 0 };
+      let puffs = [];
+
+      function setup() {
+        const holder = document.getElementById('sketch-holder');
+        const cnv = createCanvas(windowWidth, windowHeight);
+        cnv.parent(holder);
+        cnv.elt.style.background = 'transparent';
+        // Use device pixel ratio for crisp edges on HiDPI displays
+        pixelDensity(window.devicePixelRatio || 1);
+        colorMode(HSB, 360, 100, 100, 255);
+        strokeCap(ROUND);
+        computeLayout();
+        makePuffs();
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        computeLayout();
+        makePuffs();
+      }
+
+      function computeLayout() {
+        cloud.w = min(width, height) * 0.58;
+        cloud.h = cloud.w * 0.62;
+        cloud.cx = width * 0.5;
+        cloud.cy = height * 0.5;
+      }
+
+      function makePuffs() {
+        // Precompute static puff offsets (no per-frame jitter)
+        randomSeed(42);
+        noiseSeed(42);
+        puffs = [];
+        const parts = 7;
+        for (let i = 0; i < parts; i++) {
+          const t = i / (parts - 1);
+          const ox = map(t, 0, 1, -0.36, 0.36) + random(-0.02, 0.02);
+          const oy = random(-0.06, 0.06);
+          const sx = random(0.42, 0.58);
+          const sy = random(0.46, 0.62);
+          const a = random(180, 235);
+          puffs.push({ ox, oy, sx, sy, a });
+        }
+      }
+
+      function draw() {
+        clear(); // transparent background
+
+        // Draw doodles behind the cloud
+        if (doodles.length || currentStroke) {
+          noFill();
+          for (let s of doodles) {
+            stroke(s.color || color(20, 0, 100, 200));
+            strokeWeight(s.weight || 3);
+            beginShape();
+            for (let p of s.points) vertex(p.x, p.y);
+            endShape();
+          }
+          if (currentStroke) {
+            stroke(currentStroke.color);
+            strokeWeight(currentStroke.weight);
+            beginShape();
+            for (let p of currentStroke.points) vertex(p.x, p.y);
+            endShape();
+          }
+        }
+
+        // Gentle idle bobbing
+        const t = frameCount * 0.02;
+        const bob = sin(t) * (cloud.h * 0.02);
+        const cx = cloud.cx;
+        const cy = cloud.cy + bob;
+        const w = cloud.w;
+        const h = cloud.h;
+
+        // Soft base shadow
+        noStroke();
+        fill(0, 0, 0, 28);
+        ellipse(cx, cy + h * 0.49, w * 0.62, h * 0.25);
+
+        // Cloud body
+        drawCloud(cx, cy, w, h);
+
+        // Eyes
+        const eyeOffsetX = w * 0.19;
+        const eyeOffsetY = -h * 0.03;
+        const leftEye = { x: cx - eyeOffsetX, y: cy + eyeOffsetY };
+        const rightEye = { x: cx + eyeOffsetX, y: cy + eyeOffsetY };
+        const eyeR = w * 0.085;
+        const pupilR = eyeR * 0.45;
+
+        // whites
+        fill(0, 0, 100, 255);
+        ellipse(leftEye.x, leftEye.y, eyeR * 2, eyeR * 2);
+        ellipse(rightEye.x, rightEye.y, eyeR * 2, eyeR * 2);
+
+        // pupils
+        const maxOff = eyeR * 0.36;
+        const mouse = { x: mouseX, y: mouseY };
+        const lp = pupilForEye(leftEye, mouse, maxOff);
+        const rp = pupilForEye(rightEye, mouse, maxOff);
+        fill(0, 0, 20, 255);
+        ellipse(lp.x, lp.y, pupilR * 2, pupilR * 2);
+        ellipse(rp.x, rp.y, pupilR * 2, pupilR * 2);
+
+        // Simple smile
+        stroke(0, 0, 30, 220);
+        strokeWeight(max(1.5, w * 0.01));
+        noFill();
+        arc(cx, cy + h * 0.09, w * 0.12, h * 0.10, 0, PI);
+      }
+
+      function drawCloud(x, y, w, h) {
+        noStroke();
+        // Soft main belly
+        fill(0, 0, 100, 235);
+        ellipse(x, y + h * 0.04, w * 0.92, h * 0.92);
+        // Side puffs
+        for (let p of puffs) {
+          fill(0, 0, 100, p.a);
+          ellipse(x + p.ox * w, y + p.oy * h, w * p.sx * 0.52, h * p.sy * 0.62);
+        }
+      }
+
+      function pupilForEye(eye, mouse, maxOffset) {
+        const dx = mouse.x - eye.x;
+        const dy = mouse.y - eye.y;
+        const d = sqrt(dx * dx + dy * dy);
+        if (d < 0.001) return { x: eye.x, y: eye.y };
+        const nx = (dx / d) * min(maxOffset, d * 0.2);
+        const ny = (dy / d) * min(maxOffset, d * 0.2);
+        return { x: eye.x + nx, y: eye.y + ny };
+      }
+
+      function mousePressed() {
+        const hue = (frameCount * 2) % 360;
+        currentStroke = { color: color(hue, 35, 100, 210), weight: 3, points: [] };
+        currentStroke.points.push({ x: mouseX, y: mouseY });
+      }
+
+      function mouseDragged() {
+        if (!currentStroke) return;
+        currentStroke.points.push({ x: mouseX, y: mouseY });
+      }
+
+      function mouseReleased() {
+        if (currentStroke && currentStroke.points.length > 1) {
+          doodles.push(currentStroke);
+        }
+        currentStroke = null;
+      }
+
+      function doubleClicked() {
+        doodles = [];
+        return false;
+      }
+
+      function keyPressed() {
+        if (key === 'c' || key === 'C') {
+          doodles = [];
+        }
+      }
+    </script>
+  </body>
+</html>

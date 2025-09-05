@@ -1,153 +1,201 @@
-const { app, BrowserWindow, globalShortcut, ipcMain, dialog, Menu, screen } = require('electron')
-const path = require('path')
-const url = require('url')
+const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu } = require('electron');
+const path = require('path');
 
-// Enable experimental features for permissions
-app.commandLine.appendSwitch('enable-experimental-web-platform-features')
-app.commandLine.appendSwitch('enable-web-bluetooth')
+let windows = new Set(); // Track all windows
+let mainWindow; // The initial window
 
-let mainWindow
-let currentURL = 'https://www.example.com' // Track current URL
-let windowState = {
-  bounds: { width: 800, height: 600, x: 0, y: 0 }
-}
-
-// Listen for URL updates from renderer
-ipcMain.on('url-updated', (event, newUrl) => {
-  if (newUrl && !newUrl.includes('index.html')) {
-    currentURL = newUrl
-    console.log('URL updated:', currentURL)
-  }
-})
-
-function createWindow (options = {}) {
-  // Get screen dimensions
-  const primaryDisplay = screen.getPrimaryDisplay()
-  const { width, height } = primaryDisplay.workAreaSize
-  
-  // Center window if no position specified
-  if (!options.x && !options.y) {
-    windowState.bounds.x = Math.floor((width - windowState.bounds.width) / 2)
-    windowState.bounds.y = Math.floor((height - windowState.bounds.height) / 2)
-  }
-  
-  // Default options - always use frameless window
-  const windowOptions = {
-    ...windowState.bounds,
+function createWindow() {
+  const newWindow = new BrowserWindow({
+    width: 800,
+    height: 600,
     transparent: true,
     frame: false,
+    backgroundColor: '#00000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-      webviewTag: true,
-      enableRemoteModule: false
-    },
-    ...options
+      contextIsolation: true, // Required for security
+      nodeIntegration: false, // Disable nodeIntegration in renderer
+    }
+  });
+
+  // Store click-through state with the window
+  newWindow.isClickThrough = false;
+
+  newWindow.loadFile('index.html');
+  
+  // Add window to our collection
+  windows.add(newWindow);
+  
+  // If this is the first window, set it as mainWindow
+  if (!mainWindow) {
+    mainWindow = newWindow;
   }
-  
-  // Create the browser window
-  mainWindow = new BrowserWindow(windowOptions)
-  
-  // Save window state when it's moved or resized
-  mainWindow.on('resize', () => {
-    if (mainWindow) {
-      windowState.bounds = mainWindow.getBounds()
+
+  // Update window menu when title changes
+  newWindow.on('page-title-updated', updateWindowMenu);
+
+  newWindow.on('closed', () => {
+    windows.delete(newWindow);
+    if (newWindow === mainWindow) {
+      mainWindow = windows.size > 0 ? windows.values().next().value : null;
     }
-  })
-  
-  mainWindow.on('move', () => {
-    if (mainWindow) {
-      windowState.bounds = mainWindow.getBounds()
+    updateWindowMenu();
+  });
+
+  newWindow.on('focus', () => {
+    // Update View menu when window is focused to reflect this window's state
+    const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+    if (viewMenu) {
+      const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
+      if (clickThroughItem) {
+        clickThroughItem.checked = newWindow.isClickThrough;
+      }
+      const alwaysOnTopItem = viewMenu.submenu.items.find(item => item.label === 'Always on Top');
+      if (alwaysOnTopItem) {
+        alwaysOnTopItem.checked = newWindow.isAlwaysOnTop();
+      }
     }
-  })
-  
-  // Load the index.html
-  mainWindow.loadFile('index.html')
-  
-  mainWindow.webContents.once('did-finish-load', () => {
-    console.log('Main window loaded')
-    
-    // After the window loads, apply the current URL
-    if (currentURL && currentURL !== 'https://www.example.com') {
-      console.log('Restoring URL:', currentURL)
-      mainWindow.webContents.send('load-last-url', currentURL)
-    }
-  })
-  
-  // Register global keyboard shortcuts
-  registerShortcuts()
-  
-  // Create application menu
-  createMenu()
-  
-  return mainWindow
+    updateWindowMenu();
+  });
+
+  // Update menu to show new window
+  updateWindowMenu();
+
+  return newWindow;
 }
 
-function registerShortcuts() {
-  // Toggle URL bar
-  globalShortcut.register('CommandOrControl+L', () => {
-    mainWindow.webContents.send('toggle-url-bar')
-  })
-  
-  // Toggle UI
-  globalShortcut.register('CommandOrControl+U', () => {
-    mainWindow.webContents.send('toggle-ui')
-  })
-  
-  // Toggle fullscreen
-  globalShortcut.register('F11', () => {
-    mainWindow.setFullScreen(!mainWindow.isFullScreen())
-  })
-  
-  // Open file
-  globalShortcut.register('CommandOrControl+O', () => {
-    openFileDialog()
-  })
+// Move window resizing handler outside createWindow function
+// This ensures it's only registered once
+ipcMain.handle('set-window-size', (event, width, height) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    win.setSize(width, height);
+  }
+});
+
+// Provide full bounds get/set for precise frameless resizing
+ipcMain.handle('get-window-bounds', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win) {
+    return win.getBounds();
+  }
+  return null;
+});
+
+ipcMain.handle('set-window-bounds', (event, bounds) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (win && bounds) {
+    win.setBounds(bounds);
+  }
+});
+
+// Close the currently focused window
+function closeCurrentWindow() {
+  const focusedWindow = BrowserWindow.getFocusedWindow();
+  if (focusedWindow) {
+    focusedWindow.close();
+  }
 }
 
-// Handle window resizing
-ipcMain.on('set-window-size', (event, width, height) => {
-  if (mainWindow) {
-    mainWindow.setSize(width, height)
+// Position window in a specific quadrant of the screen
+function positionWindowInQuadrant(win, quadrant) {
+  if (!win) return;
+  
+  // Get the primary display's work area (screen size minus taskbar/dock)
+  const workArea = screen.getPrimaryDisplay().workArea;
+  const halfWidth = Math.floor(workArea.width / 2);
+  const halfHeight = Math.floor(workArea.height / 2);
+  
+  switch (quadrant) {
+    case 'top-left':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'top-right':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-left':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y + halfHeight, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-right':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y + halfHeight, 
+        width: halfWidth, 
+        height: halfHeight 
+      });
+      break;
+    case 'top-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: workArea.width, 
+        height: halfHeight 
+      });
+      break;
+    case 'bottom-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y + halfHeight, 
+        width: workArea.width, 
+        height: halfHeight 
+      });
+      break;
+    case 'left-half':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: workArea.height 
+      });
+      break;
+    case 'right-half':
+      win.setBounds({ 
+        x: workArea.x + halfWidth, 
+        y: workArea.y, 
+        width: halfWidth, 
+        height: workArea.height 
+      });
+      break;
+    case 'full-screen':
+      win.setBounds({ 
+        x: workArea.x, 
+        y: workArea.y, 
+        width: workArea.width, 
+        height: workArea.height 
+      });
+      break;
+    case 'center':
+      // Center the window with 2/3 of screen size
+      const centerWidth = Math.floor(workArea.width * 2/3);
+      const centerHeight = Math.floor(workArea.height * 2/3);
+      win.setBounds({
+        x: workArea.x + Math.floor((workArea.width - centerWidth) / 2),
+        y: workArea.y + Math.floor((workArea.height - centerHeight) / 2),
+        width: centerWidth,
+        height: centerHeight
+      });
+      break;
   }
-})
-
-// Handle file opening
-ipcMain.on('open-file-dialog', () => {
-  openFileDialog()
-})
-
-// Function to open file dialog
-function openFileDialog() {
-  dialog.showOpenDialog(mainWindow, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'All Files', extensions: ['*'] },
-      { name: 'HTML', extensions: ['htm', 'html'] },
-      { name: 'PDF', extensions: ['pdf'] }
-    ]
-  }).then(result => {
-    if (!result.canceled && result.filePaths.length > 0) {
-      const filePath = result.filePaths[0]
-      mainWindow.webContents.send('selected-file', filePath)
-    }
-  }).catch(err => {
-    console.error('Error opening file dialog:', err)
-  })
 }
 
-// Handle navigation
-ipcMain.on('navigate', (event, url) => {
-  if (mainWindow) {
-    mainWindow.webContents.send('navigate-to-url', url)
-  }
-})
-
-// Function to create application menu
+// Create application menu
 function createMenu() {
   const isMac = process.platform === 'darwin';
-  
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{
@@ -164,24 +212,27 @@ function createMenu() {
         { role: 'quit' }
       ]
     }] : []),
-    
-    // File menu
     {
       label: 'File',
       submenu: [
         {
+          label: 'New Window',
+          accelerator: 'CmdOrCtrl+N',
+          click: () => { createWindow(); }
+        },
+        {
           label: 'Open File...',
           accelerator: 'CmdOrCtrl+O',
           click: () => {
-            openFileDialog();
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('open-file-shortcut');
           }
         },
         { type: 'separator' },
-        isMac ? { role: 'close' } : { role: 'quit' }
+        { role: 'close' },
+        ...(isMac ? [] : [{ role: 'quit' }])
       ]
     },
-    
-    // Edit menu
     {
       label: 'Edit',
       submenu: [
@@ -210,39 +261,93 @@ function createMenu() {
         ])
       ]
     },
-    
-    // View menu
     {
       label: 'View',
       submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { 
+          role: 'toggleDevTools',
+          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I'
+        },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+        { type: 'separator' },
+        {
+          label: 'Always on Top',
+          type: 'checkbox',
+          accelerator: 'Alt+T',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) {
+              win.setAlwaysOnTop(menuItem.checked);
+              updateWindowMenu(); // Update menu immediately
+            }
+          }
+        },
+        {
+          label: 'Click-through Mode',
+          type: 'checkbox',
+          accelerator: 'Alt+M',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) {
+              // Keep internal state in sync with menu toggle
+              win.isClickThrough = menuItem.checked;
+              win.setIgnoreMouseEvents(menuItem.checked, { forward: true });
+              win.webContents.send('ignore-mouse-events-changed', menuItem.checked);
+              updateWindowMenu(); // Update menu immediately
+            }
+          }
+        },
+        { type: 'separator' },
         {
           label: 'Toggle UI',
           accelerator: 'CmdOrCtrl+U',
           click: () => {
-            mainWindow.webContents.send('toggle-ui');
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('toggle-ui-shortcut');
           }
         },
         {
           label: 'Toggle URL Bar',
           accelerator: 'CmdOrCtrl+L',
           click: () => {
-            mainWindow.webContents.send('toggle-url-bar');
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('toggle-url-bar-shortcut');
+          }
+        },
+        {
+          label: 'Go to URL',
+          accelerator: 'CmdOrCtrl+G',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('go-to-url');
           }
         },
         { type: 'separator' },
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' }
+        {
+          label: 'Decrease Opacity',
+          accelerator: 'CmdOrCtrl+[',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('decrease-opacity');
+          }
+        },
+        {
+          label: 'Increase Opacity',
+          accelerator: 'CmdOrCtrl+]',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('increase-opacity');
+          }
+        }
       ]
     },
-    
-    // Window menu
     {
       label: 'Window',
       submenu: [
@@ -251,46 +356,209 @@ function createMenu() {
         ...(isMac ? [
           { type: 'separator' },
           { role: 'front' },
-          { type: 'separator' },
-          { role: 'window' }
+          // Add this role to restore system window management features
+          { role: 'windowMenu' }  
         ] : [
           { role: 'close' }
-        ])
+        ]),
+        { type: 'separator' },
+        {
+          label: 'Custom Positioning',
+          submenu: [
+            {
+              label: 'Center Window (Shift+F6)',
+              accelerator: 'Shift+F6',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'center');
+              }
+            },
+            {
+              label: 'Fill Screen (Shift+F5)',
+              accelerator: 'Shift+F5',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'full-screen');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Left Half (Shift+F7)',
+              accelerator: 'Shift+F7',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'left-half');
+              }
+            },
+            {
+              label: 'Right Half (Shift+F10)',
+              accelerator: 'Shift+F10',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'right-half');
+              }
+            },
+            {
+              label: 'Top Half (Shift+F8)',
+              accelerator: 'Shift+F8',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-half');
+              }
+            },
+            {
+              label: 'Bottom Half (Shift+F9)',
+              accelerator: 'Shift+F9',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-half');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Top Left (Shift+F1)',
+              accelerator: 'Shift+F1',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-left');
+              }
+            },
+            {
+              label: 'Top Right (Shift+F2)',
+              accelerator: 'Shift+F2',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'top-right');
+              }
+            },
+            {
+              label: 'Bottom Left (Shift+F3)',
+              accelerator: 'Shift+F3',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-left');
+              }
+            },
+            {
+              label: 'Bottom Right (Shift+F4)',
+              accelerator: 'Shift+F4',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-right');
+              }
+            }
+          ]
+        }
+        // Dynamic window list will be added here
       ]
     },
-    
-    // Help menu
     {
+      label: 'Help',
       role: 'help',
       submenu: [
         {
           label: 'Learn More',
           click: async () => {
             const { shell } = require('electron');
-            await shell.openExternal('https://github.com/languel/cloudywindow');
+            await shell.openExternal('https://electronjs.org');
           }
         }
       ]
     }
   ];
-  
+
+  // Add dynamic window list to Window menu
+  const windowMenu = template.find(item => item.label === 'Window');
+  if (windowMenu && windowMenu.submenu) {
+    // Add a separator if there are any windows
+    if (windows.size > 0) {
+      windowMenu.submenu.push({ type: 'separator' });
+    }
+
+    // Add each window to the menu (keep your existing window list code)
+    let windowIndex = 1;
+    for (const win of windows) {
+      const isAlwaysOnTop = win.isAlwaysOnTop();
+      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+      const clickThroughItem = viewMenu?.submenu.items.find(item => item.label === 'Click-through Mode');
+      const isClickThrough = clickThroughItem?.checked || false;
+      
+      let statusIndicators = '';
+      if (isClickThrough) statusIndicators += '👆';
+      if (isAlwaysOnTop) statusIndicators += '📌';
+      if (statusIndicators) statusIndicators += ' ';
+      
+      windowMenu.submenu.push({
+        label: `${statusIndicators}Window ${windowIndex}`,
+        type: 'radio',
+        checked: win === BrowserWindow.getFocusedWindow(),
+        click: () => {
+          win.focus();
+        }
+      });
+      windowIndex++;
+    }
+  }
+
   const menu = Menu.buildFromTemplate(template);
   Menu.setApplicationMenu(menu);
 }
 
+// Update menu when windows change
+function updateWindowMenu() {
+  createMenu();
+}
+
 app.whenReady().then(() => {
-  createWindow()
+  // Create menu before creating any windows
+  createMenu();
+  
+  createWindow();
 
-  app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
+  app.on('activate', () => {
+    if (windows.size === 0) {
+      createWindow();
+    }
+  });
+  
+  // Add IPC handlers for window management
+  ipcMain.on('new-window', () => {
+    createWindow();
+  });
+  
+  ipcMain.on('close-window', () => {
+    closeCurrentWindow();
+  });
 
-app.on('window-all-closed', function () {
-  if (process.platform !== 'darwin') app.quit()
-})
+});
 
-// Clean up shortcuts when app is quit
+// Move IPC handlers outside of createWindow to avoid registering them multiple times
+// Handle file opening - use event.sender to reply to the correct window
+ipcMain.on('open-file', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return;
+  
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'HTML Files', extensions: ['html'] }]
+  });
+
+  if (!result.canceled && result.filePaths.length > 0) {
+    event.reply('selected-file', result.filePaths[0]);
+  }
+});
+
+// (Removed) legacy navigate/load-url IPC were unused in current renderer
+
+app.on('window-all-closed', () => {
+  if (process.platform !== 'darwin') {
+    app.quit();
+  }
+});
+
 app.on('will-quit', () => {
-  globalShortcut.unregisterAll()
-})
+  // Unregister all shortcuts.
+  globalShortcut.unregisterAll();
+});
+
+app.on('browser-window-focus', updateWindowMenu);
