@@ -70,6 +70,23 @@ file://<path-to-repo>/default-minimal.html
 ## Notes
 - PDFs: Opening PDFs directly is not guaranteed inside an iframe and may be blocked by platform/engine support. HTML is fully supported. For robust PDF viewing, consider opening in the system browser or switching the app to use Electron `<webview>`.
 
+## macOS Unsigned Builds (Gatekeeper)
+If you distribute an unsigned build to students, macOS may block it. Options:
+
+- Easiest: Right-click the app, choose `Open`, then confirm. This whitelists once.
+- Remove quarantine attribute (after moving the app to `/Applications`):
+  ```sh
+  xattr -dr com.apple.quarantine "/Applications/CloudyWindow.app"
+  ```
+- If Gatekeeper still intercepts, ad‑hoc sign locally:
+  ```sh
+  sudo codesign --force --deep --sign - "/Applications/CloudyWindow.app"
+  ```
+
+Notes:
+- Only run these commands for software you trust.
+- After updates, you may need to repeat the `xattr` step.
+
 ## License
 MIT
 
