@@ -457,7 +457,6 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 function setOverallOpacity(v) {
   overallOpacity = clamp01(v);
   if (iframe) iframe.style.opacity = String(overallOpacity);
-  setBackgroundOpacity(overallOpacity);
   scheduleFlush();
 }
 function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }

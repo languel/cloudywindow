@@ -449,11 +449,11 @@ function createMenu() {
           label: 'Overall Opacity',
           submenu: [
             {
-              label: '0% (fully transparent) — caution',
+              label: 'BG 0% (transparent only)',
               accelerator: 'CmdOrCtrl+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) { win.webContents.send('set-overall-opacity', 0.0); win.webContents.send('hard-flush'); }
+                if (win) { win.webContents.send('set-bg-opacity', 0.0); win.webContents.send('hard-flush'); }
               }
             },
             {
