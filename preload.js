@@ -22,14 +22,25 @@ contextBridge.exposeInMainWorld('electronAPI', {
     closeWindow: () => ipcRenderer.send('close-window'),
     onReloadContent: (callback) => ipcRenderer.on('reload-content', callback),
     
-    // Add opacity control handlers
+    // Add background opacity control handlers
     onDecreaseOpacity: (callback) => ipcRenderer.on('decrease-opacity', callback),
     onIncreaseOpacity: (callback) => ipcRenderer.on('increase-opacity', callback),
+    onSetBgOpacity: (callback) => ipcRenderer.on('set-bg-opacity', callback),
+    // Overall opacity handlers
+    onSetOverallOpacity: (callback) => ipcRenderer.on('set-overall-opacity', callback),
+    onIncreaseOverallOpacity: (callback) => ipcRenderer.on('increase-overall-opacity', callback),
+    onDecreaseOverallOpacity: (callback) => ipcRenderer.on('decrease-overall-opacity', callback),
     
     // Add handler for ignore mouse events changes
     onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback),
     onFlashBorder: (callback) => ipcRenderer.on('flash-border', callback),
+    onHardFlush: (callback) => ipcRenderer.on('hard-flush', callback),
+    onWindowBgAlpha: (callback) => ipcRenderer.on('window-bg-alpha', callback),
+    onCanvasSafeMode: (callback) => ipcRenderer.on('canvas-safe-mode', callback),
+    onPreDrawFlushToggle: (callback) => ipcRenderer.on('pre-draw-flush-toggle', callback),
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
-    openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog')
+    openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+    // Provide absolute path to webview preload script
+    getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
 });

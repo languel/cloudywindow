@@ -286,6 +286,7 @@
     "yocto-queue": "^0.1.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.6.0",
     "electron-builder": "^25.1.8",
     "electron": "^35.0.2"
   },
@@ -312,6 +313,7 @@
   "description": ""
   ,
   "build": {
+    "npmRebuild": false,
     "appId": "com.languel.cloudywindow",
     "mac": {
       "category": "public.app-category.utilities",

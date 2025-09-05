@@ -1,4 +1,4 @@
-const iframe = document.getElementById('content-frame');
+const iframe = document.getElementById('content-frame'); // now a <webview>
 const dropOverlay = document.getElementById('drop-overlay');
 const urlInput = document.getElementById('url-input');
 const goButton = document.getElementById('go-button');
@@ -11,6 +11,10 @@ const closeWindowButton = document.getElementById('close-window-button');
 const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
+const contentRoot = document.getElementById('content-root');
+// Pre‑draw flush toggle (persisted)
+let preDrawFlushEnabled = false;
+try { preDrawFlushEnabled = localStorage.getItem('preDrawFlushEnabled') === '1'; } catch (_) {}
 
 // Add variables to track window opacity
 let currentOpacity = 0.0; // Default opacity: fully transparent
@@ -29,7 +33,7 @@ function setBackgroundOpacity(opacity) {
   if (backdrop) {
     backdrop.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
   }
-  forceIframeRedraw();
+  if (flushOnOpacityChange) scheduleFlush();
 }
 
 function decreaseOpacity() {
@@ -43,10 +47,13 @@ function increaseOpacity() {
 // Force the iframe to re-composite to avoid transparency artifacts on some GPUs
 function forceIframeRedraw() {
   if (!iframe) return;
-  const prev = iframe.style.transform;
-  iframe.style.transform = 'translateZ(0)';
+  // Strategy: briefly hide the webview to drop its compositor cache, then restore next frame.
+  const prevVis = iframe.style.visibility || '';
+  iframe.style.visibility = 'hidden';
+  // Force reflow
+  void iframe.offsetHeight;
   requestAnimationFrame(() => {
-    iframe.style.transform = prev || '';
+    iframe.style.visibility = prevVis;
   });
 }
 
@@ -57,7 +64,23 @@ function navigateToUrl(url) {
     if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
         fullUrl = 'http://' + url;
     }
-    iframe.src = fullUrl;
+    // Ensure webview has a valid absolute preload path
+    try {
+      const absPreload = window.electronAPI.getWebviewPreloadPath && window.electronAPI.getWebviewPreloadPath();
+      if (absPreload && !iframe.getAttribute('preload')) {
+        iframe.setAttribute('preload', absPreload);
+      }
+    } catch (_) {}
+    if (preDrawFlushEnabled) {
+      // Hide before navigation to prevent stale frames
+      iframe.style.display = 'none';
+      iframe.dataset.preflush = '1';
+    }
+    if (typeof iframe.loadURL === 'function') {
+      iframe.loadURL(fullUrl);
+    } else {
+      iframe.src = fullUrl;
+    }
     urlInput.value = fullUrl;
 }
 
@@ -139,8 +162,8 @@ function toggleUI() {
     uiContainer.style.backgroundColor = 'transparent';
     uiContainer.style.visibility = 'hidden';
   }
-  // Nudge compositor so the iframe doesn't capture stale pixels
-  forceIframeRedraw();
+  // Hard flush to prevent afterimages
+  hardFlushWebview();
 }
 
 function setupResizeHandlers() {
@@ -235,6 +258,26 @@ function clearIframeContent() {
     iframe.src = 'about:blank';
 }
 
+// Aggressive flush: briefly remove the webview from flow to drop compositor cache, then restore
+function hardFlushWebview() {
+  if (!iframe) return;
+  const prev = iframe.style.display || '';
+  iframe.style.display = 'none';
+  // Force reflow
+  void iframe.offsetHeight;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      iframe.style.display = prev;
+    });
+  });
+}
+
+// Toggle from menu to persist pre‑draw flush behavior
+window.electronAPI.onPreDrawFlushToggle && window.electronAPI.onPreDrawFlushToggle((_e, enabled) => {
+  preDrawFlushEnabled = !!enabled;
+  try { localStorage.setItem('preDrawFlushEnabled', preDrawFlushEnabled ? '1' : '0'); } catch (_) {}
+});
+
 // Event Listeners
 goButton.addEventListener('click', () => {
     navigateToUrl(urlInput.value);
@@ -247,28 +290,25 @@ urlInput.addEventListener('keydown', (event) => {
 });
 
 backButton.addEventListener('click', () => {
-  try {
-    // Cross-origin safety: accessing history may throw; wrap in try/catch
-    iframe.contentWindow.history.back();
-  } catch (e) {
-    // If not allowed, no-op
-    console.warn('Back navigation not permitted for this content.', e);
+  if (iframe && typeof iframe.goBack === 'function') {
+    iframe.goBack();
+  } else {
+    console.warn('Back not supported on this content element');
   }
 });
 
 forwardButton.addEventListener('click', () => {
-  try {
-    iframe.contentWindow.history.forward();
-  } catch (e) {
-    console.warn('Forward navigation not permitted for this content.', e);
+  if (iframe && typeof iframe.goForward === 'function') {
+    iframe.goForward();
+  } else {
+    console.warn('Forward not supported on this content element');
   }
 });
 
 reloadButton.addEventListener('click', () => {
-  try {
-    // Some cross-origin contexts disallow reload via location; reset src as a fallback
-    iframe.contentWindow.location.reload();
-  } catch (e) {
+  if (iframe && typeof iframe.reload === 'function') {
+    iframe.reload();
+  } else if (iframe && iframe.src) {
     const current = iframe.src;
     iframe.src = current;
   }
@@ -378,8 +418,11 @@ window.electronAPI.onRedrawWebview(() => {
 
 // Add event listener for the reload-content event
 window.electronAPI.onReloadContent(() => {
-  if (iframe.src !== 'about:blank' && iframe.src !== '') {
-    iframe.contentWindow.location.reload();
+  if (iframe && typeof iframe.reload === 'function') {
+    iframe.reload();
+  } else if (iframe && iframe.src) {
+    const current = iframe.src;
+    iframe.src = current;
   }
 });
 
@@ -398,6 +441,29 @@ window.electronAPI.onIncreaseOpacity(() => {
   increaseOpacity();
 });
 
+// Set background opacity directly from menu (0, 0.5, 1)
+window.electronAPI.onSetBgOpacity && window.electronAPI.onSetBgOpacity((_e, value) => {
+  const v = typeof value === 'number' ? value : parseFloat(value);
+  if (!Number.isNaN(v)) {
+    setBackgroundOpacity(v);
+    scheduleFlush();
+  }
+});
+
+// Overall opacity of content (webview + backdrop) via container, not OS window
+let overallOpacity = 1.0;
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+function setOverallOpacity(v) {
+  overallOpacity = clamp01(v);
+  if (iframe) iframe.style.opacity = String(overallOpacity);
+  scheduleFlush();
+}
+function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }
+
+window.electronAPI.onSetOverallOpacity && window.electronAPI.onSetOverallOpacity((_e, v) => setOverallOpacity(typeof v === 'number' ? v : parseFloat(v)));
+window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => { incOverallOpacity(+0.1); scheduleFlush(); });
+window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => { incOverallOpacity(-0.1); scheduleFlush(); });
+
 // Shortcuts from menu
 window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {
   const folder = await window.electronAPI.openFolderDialog();
@@ -411,8 +477,141 @@ window.electronAPI.onFlashBorder && window.electronAPI.onFlashBorder(() => {
   flashBorder();
 });
 
+window.electronAPI.onHardFlush && window.electronAPI.onHardFlush(() => {
+  hardFlushWebview();
+});
+
+// Flush policy: if window background alpha is 0 (fully transparent), we may need
+// to hard flush; if near‑transparent (1%), avoid extra flushes to reduce flashing.
+let flushOnOpacityChange = false; // computed from window bg alpha
+window.electronAPI.onWindowBgAlpha && window.electronAPI.onWindowBgAlpha((_e, a) => {
+  flushOnOpacityChange = (Number(a) === 0);
+});
+
+let flushTimer = null;
+function scheduleFlush(delay = 100) {
+  if (!flushOnOpacityChange) return; // skip if near‑transparent alpha is active
+  if (flushTimer) clearTimeout(flushTimer);
+  flushTimer = setTimeout(() => {
+    hardFlushWebview();
+    flushTimer = null;
+  }, delay);
+}
+
 // Initialize opacity
 setBackgroundOpacity(currentOpacity);
 
 // Initialize frameless resize handlers
 setupResizeHandlers();
+
+// Inject site-specific CSS (e.g., tldraw transparency) after webview is ready
+function injectSiteCSS(url) {
+  if (!iframe || typeof iframe.insertCSS !== 'function') return;
+  const u = (url || '').toLowerCase();
+  // tldraw: remove white backgrounds
+  if (u.includes('tldraw')) {
+    const css = `
+      :root,.tla-theme-container{--tla-color-sidebar:hsla(0 0% 99% / 0)!important;--tla-color-background:hsla(0 0% 99% / 0)!important}
+      html,body,#root,.tla,.tla-theme-container,.tl-container{background:transparent!important}
+      .tl-background,canvas,svg{background:transparent!important}
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+  }
+
+  // Strudel (strudel.cc / tidal strudel): try to make background transparent
+  if (u.includes('strudel')) {
+    const css = `
+      html,body,#root,#app,.app,.container,.editor-container,.visualizer,.scene { background: transparent !important; }
+      .blackscreen,.whitescreen,.greenscreen { background: transparent !important; }
+      canvas,svg { background: transparent !important; }
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+    // Additionally, strip common theme classes that force solid bg
+    try {
+      iframe.executeJavaScript(`(function(){
+        const rm = ['blackscreen','whitescreen','greenscreen'];
+        document.documentElement && document.documentElement.classList && document.documentElement.classList.remove(...rm);
+        document.body && document.body.classList && document.body.classList.remove(...rm);
+      })();`);
+    } catch (_) {}
+  }
+}
+
+if (iframe) {
+  iframe.addEventListener('dom-ready', () => {
+    let currentUrl = '';
+    try { currentUrl = iframe.getURL ? iframe.getURL() : iframe.src; } catch (_) {}
+    // Reapply canvas safe mode flag if persisted
+    try {
+      const safe = localStorage.getItem('canvasSafeMode') === '1';
+      if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
+    } catch (_) {}
+    injectSiteCSS(currentUrl || '');
+    // Show after content is ready if we hid before navigation
+    if (iframe.dataset.preflush === '1') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          iframe.style.display = '';
+          iframe.dataset.preflush = '0';
+        });
+      });
+    }
+  });
+  iframe.addEventListener('did-fail-load', (e) => {
+    console.warn('Content failed to load', e.errorCode, e.errorDescription, e.validatedURL);
+  });
+  iframe.addEventListener('did-navigate', (_e) => {
+    // Update URL bar with current location
+    try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
+  });
+  // Bridge DnD events coming from the guest page via preload
+  iframe.addEventListener('ipc-message', (event) => {
+    if (!event || !event.channel) return;
+    if (event.channel === 'wv-dragover') {
+      showDropOverlay();
+    } else if (event.channel === 'wv-dragleave') {
+      hideDropOverlay();
+    } else if (event.channel === 'wv-drop') {
+      hideDropOverlay();
+      const payload = event.args && event.args[0] ? event.args[0] : {};
+      if (payload.files && payload.files.length > 0) {
+        const p = payload.files[0];
+        window.electronAPI.resolveOpenable(p).then(resolved => {
+          if (resolved) openLocalFile(resolved); else openLocalFile(p);
+        });
+        return;
+      }
+      const uri = payload.uriList ? String(payload.uriList).split('\n')[0].trim() : '';
+      if (uri) {
+        if (uri.startsWith('file://')) {
+          window.electronAPI.resolveOpenable(uri).then(resolved => {
+            if (resolved) openLocalFile(resolved); else openLocalFile(uri);
+          });
+        } else {
+          navigateToUrl(uri);
+        }
+        return;
+      }
+      const text = payload.text || '';
+      if (text) {
+        try { new URL(text); navigateToUrl(text); }
+        catch (_) {
+          window.electronAPI.resolveOpenable(text).then(resolved => {
+            if (resolved) openLocalFile(resolved); else openLocalFile(text);
+          });
+        }
+      }
+    }
+  });
+}
+
+// Canvas Safe Mode toggle: disable accelerated 2D canvas for the guest and reload
+function setCanvasSafeMode(enabled) {
+  try { localStorage.setItem('canvasSafeMode', enabled ? '1' : '0'); } catch (_) {}
+  if (!iframe) return;
+  if (enabled) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
+  else iframe.removeAttribute('disableblinkfeatures');
+  try { iframe.reload(); } catch (_) { const u = iframe.getURL ? iframe.getURL() : iframe.src; navigateToUrl(u); }
+}
+
+window.electronAPI.onCanvasSafeMode && window.electronAPI.onCanvasSafeMode((_e, enabled) => setCanvasSafeMode(!!enabled));

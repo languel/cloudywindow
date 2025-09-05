@@ -36,12 +36,14 @@ function createWindow() {
     height: 600,
     transparent: true,
     frame: false,
-    backgroundColor: '#00000000',
+    backgroundColor: '#00000001',
+    hasShadow: false,
     icon: appIcon || undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Required for security
       nodeIntegration: false, // Disable nodeIntegration in renderer
+      webviewTag: true // Enable <webview>
     }
   });
 
@@ -340,7 +342,7 @@ function createMenu() {
         {
           label: 'Always on Top',
           type: 'checkbox',
-          accelerator: 'Alt+T',
+          accelerator: 'Alt+Shift+T',
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -352,7 +354,7 @@ function createMenu() {
         {
           label: 'Click-through Mode',
           type: 'checkbox',
-          accelerator: 'Alt+M',
+          accelerator: 'Alt+Shift+M',
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -372,10 +374,154 @@ function createMenu() {
             if (win) win.webContents.send('flash-border');
           }
         },
+        {
+          label: 'Hard Flush Content',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('hard-flush');
+          }
+        },
+        {
+          label: 'Pre‑Draw Hard Flush',
+          type: 'checkbox',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('pre-draw-flush-toggle', menuItem.checked);
+          }
+        },
+        {
+          label: 'Canvas Safe Mode (disable accelerated 2D)',
+          type: 'checkbox',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('canvas-safe-mode', menuItem.checked);
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Background Opacity',
+          submenu: [
+            {
+              label: '0% (fully transparent)',
+              accelerator: 'Alt+Shift+0',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-bg-opacity', 0.0); win.webContents.send('hard-flush'); }
+              }
+            },
+            {
+              label: '50%',
+              accelerator: 'Alt+Shift+5',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-bg-opacity', 0.5); win.webContents.send('hard-flush'); }
+              }
+            },
+            {
+              label: '100%',
+              accelerator: 'Alt+Shift+1',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-bg-opacity', 1.0); win.webContents.send('hard-flush'); }
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Decrease (Opt+Shift+[)',
+              accelerator: 'Alt+Shift+[',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('decrease-opacity');
+              }
+            },
+            {
+              label: 'Increase (Opt+Shift+])',
+              accelerator: 'Alt+Shift+]',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('increase-opacity');
+              }
+            }
+          ]
+        },
+        {
+          label: 'Overall Opacity',
+          submenu: [
+            {
+              label: 'BG 0% (transparent only)',
+              accelerator: 'CmdOrCtrl+Shift+0',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-bg-opacity', 0.0); }
+              }
+            },
+            {
+              label: '50%',
+              accelerator: 'CmdOrCtrl+Shift+5',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-overall-opacity', 0.5); }
+              }
+            },
+            {
+              label: '100%',
+              accelerator: 'CmdOrCtrl+Shift+1',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { win.webContents.send('set-overall-opacity', 1.0); }
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Decrease (Cmd+Alt+[)',
+              accelerator: 'CmdOrCtrl+Alt+[',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('decrease-overall-opacity');
+              }
+            },
+            {
+              label: 'Increase (Cmd+Alt+])',
+              accelerator: 'CmdOrCtrl+Alt+]',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('increase-overall-opacity');
+              }
+            }
+          ]
+        },
+        {
+          label: 'Window Background Alpha',
+          submenu: [
+            {
+              label: 'Transparent (0%)',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { 
+                  win.setBackgroundColor('#00000000');
+                  win.webContents.send('window-bg-alpha', 0);
+                  win.webContents.send('hard-flush'); 
+                }
+              }
+            },
+            {
+              label: 'Near Transparent (1%)',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { 
+                  win.setBackgroundColor('#00000001'); 
+                  win.webContents.send('window-bg-alpha', 1);
+                  // no immediate flush needed; let changes settle
+                }
+              }
+            }
+          ]
+        },
         { type: 'separator' },
         {
           label: 'Toggle UI',
-          accelerator: 'CmdOrCtrl+U',
+          accelerator: 'CmdOrCtrl+Alt+U',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('toggle-ui-shortcut');
@@ -397,23 +543,7 @@ function createMenu() {
             if (win) win.webContents.send('go-to-url');
           }
         },
-        { type: 'separator' },
-        {
-          label: 'Decrease Opacity',
-          accelerator: 'CmdOrCtrl+[',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('decrease-opacity');
-          }
-        },
-        {
-          label: 'Increase Opacity',
-          accelerator: 'CmdOrCtrl+]',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('increase-opacity');
-          }
-        }
+        
       ]
     },
     {
@@ -606,6 +736,22 @@ app.whenReady().then(async () => {
   
   ipcMain.on('close-window', () => {
     closeCurrentWindow();
+  });
+
+  // Global recovery shortcut: toggle click-through even when window can't get mouse focus
+  globalShortcut.register('Alt+Shift+M', () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0];
+    if (win) {
+      win.isClickThrough = !win.isClickThrough;
+      win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
+      win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
+      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+      if (viewMenu) {
+        const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
+        if (clickThroughItem) clickThroughItem.checked = win.isClickThrough;
+      }
+      updateWindowMenu();
+    }
   });
 
   // Removed global Alt+M (menu accelerator provides the shortcut and shows it visibly)

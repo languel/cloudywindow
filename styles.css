@@ -4,6 +4,13 @@ body {
     overflow: hidden; /* Hide scrollbars */
 }
 
+#content-root {
+    position: absolute;
+    inset: 0;
+    opacity: 1;
+    isolation: isolate; /* keep composition isolated to this subtree */
+}
+
 #ui-container {
     position: absolute;
     top: 0;
@@ -70,6 +77,7 @@ body {
     height: 100%;
     border: none; /* Remove iframe border */
     z-index: 2;
+    /* contain: paint;  Removed to avoid stale invalidation during canvas pans */
 }
 
 /* Invisible drag region at the very top when UI is hidden */
