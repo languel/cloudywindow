@@ -589,7 +589,9 @@ ipcMain.on('open-file', async (event) => {
   
   const result = await dialog.showOpenDialog(win, {
     properties: ['openFile'],
-    filters: [{ name: 'HTML Files', extensions: ['html'] }]
+    filters: [
+      { name: 'Web Content', extensions: ['html','htm','png','jpg','jpeg','gif','webp','svg','pdf'] }
+    ]
   });
 
   if (!result.canceled && result.filePaths.length > 0) {

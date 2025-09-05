@@ -61,7 +61,9 @@ function navigateToUrl(url) {
 }
 
 function openLocalFile(filePath) {
-    const fileUrl = 'file://' + filePath;
+    if (!filePath) return;
+    // Normalize possible file:// prefix
+    const fileUrl = filePath.startsWith('file://') ? filePath : 'file://' + filePath;
     navigateToUrl(fileUrl);
 }
 
@@ -83,31 +85,44 @@ function handleFileDrop(event) {
     event.stopPropagation();
     hideDropOverlay();
 
-    const file = event.dataTransfer.files[0];
-    if (file) {
-        if (file.path.endsWith('.html')) {
+    const files = event.dataTransfer?.files;
+    if (files && files.length > 0) {
+        const file = files[0];
+        const p = (file.path || '').toLowerCase();
+        const allowed = ['.html', '.htm', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf'];
+        if (allowed.some(ext => p.endsWith(ext))) {
             openLocalFile(file.path);
-        } else {
-          // Check if it is a URL
-          try {
-            new URL(file.path);
-            navigateToUrl(file.path)
-          } catch (_) {
-            alert('Invalid file type. Please drop an HTML file or a URL.');
-          }
+            return;
         }
-    } else {
-      // Check if it is text
-      const text = event.dataTransfer.getData('text/plain');
-      if (text) {
+        // If not a recognized extension, still try URL
         try {
-          new URL(text);
-          navigateToUrl(text);
+            new URL(file.path);
+            navigateToUrl(file.path);
+            return;
+        } catch (_) {}
+        // Fallback: treat as local path
+        openLocalFile(file.path);
+        return;
+    }
+
+    // Check for URI list (file:/// or http(s) URLs)
+    const uriList = event.dataTransfer.getData('text/uri-list');
+    if (uriList) {
+        const first = uriList.split('\n')[0].trim();
+        if (first.startsWith('file://')) return openLocalFile(first);
+        return navigateToUrl(first);
+    }
+
+    // Check for plain text
+    const text = event.dataTransfer.getData('text/plain');
+    if (text) {
+        try {
+            new URL(text);
+            navigateToUrl(text);
         } catch (_) {
-          // It is likely a file path
-          openLocalFile(text);
+            // Likely a local filesystem path
+            openLocalFile(text);
         }
-      }
     }
 }
 
@@ -302,6 +317,8 @@ toggleUiButton.addEventListener('click', () => {
     if (dragCounter === 0) hideDropOverlay();
   });
 });
+
+document.addEventListener('dragend', () => hideDropOverlay());
 
 document.addEventListener('drop', handleFileDrop);
 iframe.addEventListener('drop', handleFileDrop);

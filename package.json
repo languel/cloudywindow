@@ -292,8 +292,8 @@
   "scripts": {
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "icon": "electron scripts/gen-icon.js",
-    "prebuild": "electron scripts/gen-icon.js",
+    "icon": "node scripts/gen-icon.js",
+    "prebuild": "node scripts/gen-icon.js || echo 'icon generation skipped'",
     "build": "electron-builder"
   },
   "repository": {

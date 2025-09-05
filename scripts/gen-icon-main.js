@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron/main');
+const { app, BrowserWindow } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
@@ -35,7 +35,11 @@ async function renderEmoji(size) {
     body{display:flex;align-items:center;justify-content:center}
     .e{font-size:${Math.floor(size * 0.8)}px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',system-ui,sans-serif}
   </style><div class=\"e\">${EMOJI}</div>`;
-  await win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  await new Promise((resolve, reject) => {
+    win.webContents.once('did-finish-load', resolve);
+    win.webContents.once('did-fail-load', (_e, code, desc) => reject(new Error(`did-fail-load ${code} ${desc}`)));
+    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html)).catch(reject);
+  });
   const image = await win.capturePage();
   win.destroy();
   return image.resize({ width: size, height: size });
