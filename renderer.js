@@ -33,8 +33,7 @@ function setBackgroundOpacity(opacity) {
   if (backdrop) {
     backdrop.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
   }
-  // Aggressive flush to avoid any compositor afterimages
-  hardFlushWebview();
+  if (flushOnOpacityChange) scheduleFlush();
 }
 
 function decreaseOpacity() {

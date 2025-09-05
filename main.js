@@ -453,7 +453,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) { win.webContents.send('set-bg-opacity', 0.0); win.webContents.send('hard-flush'); }
+                if (win) { win.webContents.send('set-bg-opacity', 0.0); }
               }
             },
             {
@@ -461,7 +461,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) { win.webContents.send('set-overall-opacity', 0.5); win.webContents.send('hard-flush'); }
+                if (win) { win.webContents.send('set-overall-opacity', 0.5); }
               }
             },
             {
@@ -469,7 +469,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) { win.webContents.send('set-overall-opacity', 1.0); win.webContents.send('hard-flush'); }
+                if (win) { win.webContents.send('set-overall-opacity', 1.0); }
               }
             },
             { type: 'separator' },
