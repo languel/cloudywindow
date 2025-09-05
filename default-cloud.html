@@ -90,31 +90,31 @@
         };
 
         // Top row across the cloud (non-uniform jitter via noise)
-        const topCount = 8;
+        const topCount = 2;
         for (let i = 0; i < topCount; i++) {
           const t = i / (topCount - 1);
-          const ox = map(t, 0, 1, -0.48, 0.48) + (noise(1.7 * t) - 0.5) * 0.06;
-          const oy = -0.08 + (noise(3.1 * t + 10) - 0.5) * 0.10;
+          const ox = map(t, 0, 1, -0.1, 0.16) + (noise(1.7 * t) - 0.5) * 0.06;
+          const oy = -0.2 + (noise(3.1 * t + 10) - 0.5) * 0.10;
           const sx = 0.50 + (noise(2.3 * t + 20) - 0.5) * 0.20;
           const sy = 0.54 + (noise(2.0 * t + 30) - 0.5) * 0.18;
           const a  = 210 + noise(2.5 * t + 40) * 40;
           add(ox, oy, sx, sy, a);
         }
         // Left side scallops (different count/shape than right)
-        const leftCount = 3;
+        const leftCount = 4;
         for (let i = 0; i < leftCount; i++) {
-          const ox = -0.56 - i * 0.05 + random(-0.02, 0.02);
-          const oy = random(-0.03, 0.12);
+          const ox = -0.2 - i * 0.05 + random(-0.02, 0.02);
+          const oy = -0.1 + random(-0.03, 0.12);
           const sx = random(0.30, 0.44);
           const sy = random(0.34, 0.50);
           const a  = random(180, 230);
           add(ox, oy, sx, sy, a);
         }
         // Right side scallops (slightly more/denser)
-        const rightCount = 4;
+        const rightCount = 3;
         for (let i = 0; i < rightCount; i++) {
-          const ox = 0.50 + i * 0.06 + random(-0.02, 0.02);
-          const oy = random(-0.01, 0.14);
+          const ox = 0.2 + i * 0.06 + random(-0.02, 0.02);
+          const oy = -0.3+ random(-0.01, 0.14);
           const sx = random(0.28, 0.42);
           const sy = random(0.34, 0.48);
           const a  = random(170, 220);
@@ -124,7 +124,7 @@
         const bottomCount = 3;
         for (let i = 0; i < bottomCount; i++) {
           const t = i / (bottomCount - 1);
-          const ox = map(t, 0, 1, -0.30, 0.28) + (noise(5.0 * t + 50) - 0.5) * 0.05;
+          const ox = map(t, 0, 1, -0.20, 0.22) + (noise(5.0 * t + 50) - 0.5) * 0.05;
           const oy = random(0.12, 0.22);
           const sx = random(0.36, 0.52);
           const sy = random(0.36, 0.52);

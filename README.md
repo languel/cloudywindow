@@ -57,9 +57,9 @@ Notes:
 - Local builds will skip code signing unless you have a Developer ID certificate configured. Signed builds are required for public distribution on macOS.
 
 ## Demos
-The app loads `companion.html` by default. There are additional local demos you can open with the URL input or by dropping files into the window:
+The app loads `default-cloud.html` by default. There are additional local demos you can open with the URL input or by dropping files into the window:
 
-- `companion.html` - transparent desktop companion demo (cloud with googly eyes and doodling)
+- `default-cloud.html` - transparent desktop companion demo (cloud with eyes + doodling)
 - `default-minimal.html` - minimal transparent page with emoji
 
 Example to open the minimal default from the URL bar:
