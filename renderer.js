@@ -438,4 +438,43 @@ if (iframe) {
     try { currentUrl = iframe.getURL ? iframe.getURL() : iframe.src; } catch (_) {}
     injectSiteCSS(currentUrl || '');
   });
+  // Bridge DnD events coming from the guest page via preload
+  iframe.addEventListener('ipc-message', (event) => {
+    if (!event || !event.channel) return;
+    if (event.channel === 'wv-dragover') {
+      showDropOverlay();
+    } else if (event.channel === 'wv-dragleave') {
+      hideDropOverlay();
+    } else if (event.channel === 'wv-drop') {
+      hideDropOverlay();
+      const payload = event.args && event.args[0] ? event.args[0] : {};
+      if (payload.files && payload.files.length > 0) {
+        const p = payload.files[0];
+        window.electronAPI.resolveOpenable(p).then(resolved => {
+          if (resolved) openLocalFile(resolved); else openLocalFile(p);
+        });
+        return;
+      }
+      const uri = payload.uriList ? String(payload.uriList).split('\n')[0].trim() : '';
+      if (uri) {
+        if (uri.startsWith('file://')) {
+          window.electronAPI.resolveOpenable(uri).then(resolved => {
+            if (resolved) openLocalFile(resolved); else openLocalFile(uri);
+          });
+        } else {
+          navigateToUrl(uri);
+        }
+        return;
+      }
+      const text = payload.text || '';
+      if (text) {
+        try { new URL(text); navigateToUrl(text); }
+        catch (_) {
+          window.electronAPI.resolveOpenable(text).then(resolved => {
+            if (resolved) openLocalFile(resolved); else openLocalFile(text);
+          });
+        }
+      }
+    }
+  });
 }
