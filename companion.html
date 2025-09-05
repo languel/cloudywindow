@@ -84,16 +84,21 @@
         randomSeed(77);
         noiseSeed(137);
         puffs = [];
+
+        const add = (ox, oy, sx, sy, a) => {
+          puffs.push({ ox, oy, sx, sy, a, s: random(1000) });
+        };
+
         // Top row across the cloud (non-uniform jitter via noise)
         const topCount = 8;
         for (let i = 0; i < topCount; i++) {
           const t = i / (topCount - 1);
           const ox = map(t, 0, 1, -0.48, 0.48) + (noise(1.7 * t) - 0.5) * 0.06;
           const oy = -0.08 + (noise(3.1 * t + 10) - 0.5) * 0.10;
-          const sx = 0.50 + (noise(2.3 * t + 20) - 0.5) * 0.20; // width variation
-          const sy = 0.54 + (noise(2.0 * t + 30) - 0.5) * 0.18; // height variation
-          const a  = 210 + noise(2.5 * t + 40) * 40;            // alpha variation
-          puffs.push({ ox, oy, sx, sy, a });
+          const sx = 0.50 + (noise(2.3 * t + 20) - 0.5) * 0.20;
+          const sy = 0.54 + (noise(2.0 * t + 30) - 0.5) * 0.18;
+          const a  = 210 + noise(2.5 * t + 40) * 40;
+          add(ox, oy, sx, sy, a);
         }
         // Left side scallops (different count/shape than right)
         const leftCount = 3;
@@ -103,7 +108,7 @@
           const sx = random(0.30, 0.44);
           const sy = random(0.34, 0.50);
           const a  = random(180, 230);
-          puffs.push({ ox, oy, sx, sy, a });
+          add(ox, oy, sx, sy, a);
         }
         // Right side scallops (slightly more/denser)
         const rightCount = 4;
@@ -113,7 +118,7 @@
           const sx = random(0.28, 0.42);
           const sy = random(0.34, 0.48);
           const a  = random(170, 220);
-          puffs.push({ ox, oy, sx, sy, a });
+          add(ox, oy, sx, sy, a);
         }
         // Bottom scallops (non-symmetric)
         const bottomCount = 3;
@@ -124,7 +129,7 @@
           const sx = random(0.36, 0.52);
           const sy = random(0.36, 0.52);
           const a  = random(150, 205);
-          puffs.push({ ox, oy, sx, sy, a });
+          add(ox, oy, sx, sy, a);
         }
       }
 
@@ -205,14 +210,27 @@
 
       function drawCloud(x, y, w, h) {
         noStroke();
-        // Soft main belly (horizontal)
+        const t = frameCount * 0.01; // slow time
+        const wobblePos = 0.02;      // position wobble (in cloud units)
+        const wobbleScale = 0.06;    // scale wobble fraction
+
+        // Soft main belly with gentle wobble
+        const wb = 0.82 * (1 + (noise(999 + t) - 0.5) * 0.04);
+        const hb = 0.76 * (1 + (noise(555 + t) - 0.5) * 0.04);
         fill(0, 0, 100, 240);
-        ellipse(x, y + h * 0.02, w * 0.82, h * 0.76);
-        // Puffy parts
+        ellipse(x, y + h * 0.02, w * wb, h * hb);
+
+        // Puffy parts with per-puff wobble
         for (let p of puffs) {
-          fill(0, 0, 100, p.a);
-          ellipse(x + p.ox * w, y + p.oy * h, w * p.sx, h * p.sy);
+          const ox = p.ox + (noise(p.s + t) - 0.5) * wobblePos;
+          const oy = p.oy + (noise(p.s + 100 + t) - 0.5) * wobblePos;
+          const sx = p.sx * (1 + (noise(p.s + 200 + t) - 0.5) * wobbleScale);
+          const sy = p.sy * (1 + (noise(p.s + 300 + t) - 0.5) * wobbleScale);
+          const a  = p.a; // keep alpha stable for softness
+          fill(0, 0, 100, a);
+          ellipse(x + ox * w, y + oy * h, w * sx, h * sy);
         }
+
         // Subtle highlight to mimic glossy puff
         fill(0, 0, 100, 40);
         ellipse(x - w * 0.18, y - h * 0.10, w * 0.32, h * 0.24);
