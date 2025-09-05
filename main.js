@@ -381,6 +381,14 @@ function createMenu() {
             if (win) win.webContents.send('hard-flush');
           }
         },
+        {
+          label: 'Canvas Safe Mode (disable accelerated 2D)',
+          type: 'checkbox',
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('canvas-safe-mode', menuItem.checked);
+          }
+        },
         { type: 'separator' },
         {
           label: 'Background Opacity',

@@ -441,12 +441,14 @@ function setOverallOpacity(v) {
   overallOpacity = clamp01(v);
   if (iframe) iframe.style.opacity = String(overallOpacity);
   setBackgroundOpacity(overallOpacity);
+  // Ensure compositor drops any stale cache
+  hardFlushWebview();
 }
 function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }
 
 window.electronAPI.onSetOverallOpacity && window.electronAPI.onSetOverallOpacity((_e, v) => setOverallOpacity(typeof v === 'number' ? v : parseFloat(v)));
-window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => incOverallOpacity(+0.1));
-window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => incOverallOpacity(-0.1));
+window.electronAPI.onIncreaseOverallOpacity && window.electronAPI.onIncreaseOverallOpacity(() => { incOverallOpacity(+0.1); hardFlushWebview(); });
+window.electronAPI.onDecreaseOverallOpacity && window.electronAPI.onDecreaseOverallOpacity(() => { incOverallOpacity(-0.1); hardFlushWebview(); });
 
 // Shortcuts from menu
 window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {
@@ -508,6 +510,11 @@ if (iframe) {
   iframe.addEventListener('dom-ready', () => {
     let currentUrl = '';
     try { currentUrl = iframe.getURL ? iframe.getURL() : iframe.src; } catch (_) {}
+    // Reapply canvas safe mode flag if persisted
+    try {
+      const safe = localStorage.getItem('canvasSafeMode') === '1';
+      if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
+    } catch (_) {}
     injectSiteCSS(currentUrl || '');
   });
   iframe.addEventListener('did-fail-load', (e) => {
@@ -557,3 +564,14 @@ if (iframe) {
     }
   });
 }
+
+// Canvas Safe Mode toggle: disable accelerated 2D canvas for the guest and reload
+function setCanvasSafeMode(enabled) {
+  try { localStorage.setItem('canvasSafeMode', enabled ? '1' : '0'); } catch (_) {}
+  if (!iframe) return;
+  if (enabled) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
+  else iframe.removeAttribute('disableblinkfeatures');
+  try { iframe.reload(); } catch (_) { const u = iframe.getURL ? iframe.getURL() : iframe.src; navigateToUrl(u); }
+}
+
+window.electronAPI.onCanvasSafeMode && window.electronAPI.onCanvasSafeMode((_e, enabled) => setCanvasSafeMode(!!enabled));

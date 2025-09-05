@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback),
     onFlashBorder: (callback) => ipcRenderer.on('flash-border', callback),
     onHardFlush: (callback) => ipcRenderer.on('hard-flush', callback),
+    onCanvasSafeMode: (callback) => ipcRenderer.on('canvas-safe-mode', callback),
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
     openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
