@@ -2,7 +2,6 @@
 
 This PRD consolidates implementation plans and current status. Each requirement includes a status marker: [+] done, [~] in progress, [ ] pending. Evidence lines point to the files/lines that implement or reference the feature.
 
-Note: legacy implementation files (`implementation-plan.md`, `implementation-v0.2.md`) were removed and their content is consolidated here.
 
 ---
 
@@ -18,7 +17,7 @@ Note: legacy implementation files (`implementation-plan.md`, `implementation-v0.
 - [ + ] Maintain transparency while loading content
 - [ + ] Keyboard shortcuts (many registered)
 - [ ~ ] Multi-window management (partial)
-- [ + ] Packaging support (artifacts exist in `out/` and `dist/`)
+- [ + ] Packaging support (artifacts exist in `dist/`)
 
 ---
 

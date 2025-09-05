@@ -1,4 +1,4 @@
-const iframe = document.getElementById('content-frame');
+const iframe = document.getElementById('content-frame'); // now a <webview>
 const dropOverlay = document.getElementById('drop-overlay');
 const urlInput = document.getElementById('url-input');
 const goButton = document.getElementById('go-button');
@@ -247,28 +247,25 @@ urlInput.addEventListener('keydown', (event) => {
 });
 
 backButton.addEventListener('click', () => {
-  try {
-    // Cross-origin safety: accessing history may throw; wrap in try/catch
-    iframe.contentWindow.history.back();
-  } catch (e) {
-    // If not allowed, no-op
-    console.warn('Back navigation not permitted for this content.', e);
+  if (iframe && typeof iframe.goBack === 'function') {
+    iframe.goBack();
+  } else {
+    console.warn('Back not supported on this content element');
   }
 });
 
 forwardButton.addEventListener('click', () => {
-  try {
-    iframe.contentWindow.history.forward();
-  } catch (e) {
-    console.warn('Forward navigation not permitted for this content.', e);
+  if (iframe && typeof iframe.goForward === 'function') {
+    iframe.goForward();
+  } else {
+    console.warn('Forward not supported on this content element');
   }
 });
 
 reloadButton.addEventListener('click', () => {
-  try {
-    // Some cross-origin contexts disallow reload via location; reset src as a fallback
-    iframe.contentWindow.location.reload();
-  } catch (e) {
+  if (iframe && typeof iframe.reload === 'function') {
+    iframe.reload();
+  } else if (iframe && iframe.src) {
     const current = iframe.src;
     iframe.src = current;
   }
@@ -378,8 +375,11 @@ window.electronAPI.onRedrawWebview(() => {
 
 // Add event listener for the reload-content event
 window.electronAPI.onReloadContent(() => {
-  if (iframe.src !== 'about:blank' && iframe.src !== '') {
-    iframe.contentWindow.location.reload();
+  if (iframe && typeof iframe.reload === 'function') {
+    iframe.reload();
+  } else if (iframe && iframe.src) {
+    const current = iframe.src;
+    iframe.src = current;
   }
 });
 
@@ -416,3 +416,26 @@ setBackgroundOpacity(currentOpacity);
 
 // Initialize frameless resize handlers
 setupResizeHandlers();
+
+// Inject site-specific CSS (e.g., tldraw transparency) after webview is ready
+function injectSiteCSS(url) {
+  if (!iframe || typeof iframe.insertCSS !== 'function') return;
+  const u = (url || '').toLowerCase();
+  // tldraw: remove white backgrounds
+  if (u.includes('tldraw')) {
+    const css = `
+      :root,.tla-theme-container{--tla-color-sidebar:hsla(0 0% 99% / 0)!important;--tla-color-background:hsla(0 0% 99% / 0)!important}
+      html,body,#root,.tla,.tla-theme-container,.tl-container{background:transparent!important}
+      .tl-background,canvas,svg{background:transparent!important}
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+  }
+}
+
+if (iframe) {
+  iframe.addEventListener('dom-ready', () => {
+    let currentUrl = '';
+    try { currentUrl = iframe.getURL ? iframe.getURL() : iframe.src; } catch (_) {}
+    injectSiteCSS(currentUrl || '');
+  });
+}
