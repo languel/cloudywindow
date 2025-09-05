@@ -34,16 +34,16 @@ A transparent, borderless browser overlay built with Electron.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.
 - Use keyboard shortcuts:
-  - `Cmd+O` — Open file
-  - `Cmd+U` — Toggle UI visibility
-  - `Cmd+L` — Toggle URL bar
-  - `F11` — Toggle fullscreen
-  - `Cmd+R` — Refresh content
-  - `Cmd+W` — Close window
-  - `Cmd+Plus/Minus/0` — Zoom in/out/reset
-  - `Cmd+[ / Cmd+]` — Decrease/Increase background opacity
-  - `Alt+T` — Toggle Always-on-Top
-  - `Alt+M` — Toggle Click-through mode
+  - `Cmd+O` - Open file
+  - `Cmd+U` - Toggle UI visibility
+  - `Cmd+L` - Toggle URL bar
+  - `fn-F` - Toggle fullscreen
+  - `Cmd+R` - Refresh content
+  - `Cmd+W` - Close window
+  - `Cmd+Plus/Minus/0` - Zoom in/out/reset
+  - `Cmd+[ / Cmd+]` - Decrease/Increase background opacity
+  - `Alt+T` - Toggle Always-on-Top
+  - `Alt+M` - Toggle Click-through mode
 
 ## Packaging
 This repository uses electron-builder as the canonical packager and outputs artifacts into `dist/` by default.

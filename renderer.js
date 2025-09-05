@@ -10,6 +10,7 @@ const newWindowButton = document.getElementById('new-window-button');
 const closeWindowButton = document.getElementById('close-window-button');
 const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
+const frameFlash = document.getElementById('frame-flash');
 
 // Add variables to track window opacity
 let currentOpacity = 0.0; // Default opacity: fully transparent
@@ -88,20 +89,16 @@ function handleFileDrop(event) {
     const files = event.dataTransfer?.files;
     if (files && files.length > 0) {
         const file = files[0];
-        const p = (file.path || '').toLowerCase();
-        const allowed = ['.html', '.htm', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf'];
-        if (allowed.some(ext => p.endsWith(ext))) {
-            openLocalFile(file.path);
-            return;
-        }
-        // If not a recognized extension, still try URL
-        try {
-            new URL(file.path);
-            navigateToUrl(file.path);
-            return;
-        } catch (_) {}
-        // Fallback: treat as local path
-        openLocalFile(file.path);
+        const rawPath = file.path;
+        // Ask main to resolve directories (index.html) etc.
+        window.electronAPI.resolveOpenable(rawPath).then(resolved => {
+          if (resolved) {
+            openLocalFile(resolved);
+          } else {
+            // As a fallback, attempt to use file path directly
+            openLocalFile(rawPath);
+          }
+        });
         return;
     }
 
@@ -109,7 +106,13 @@ function handleFileDrop(event) {
     const uriList = event.dataTransfer.getData('text/uri-list');
     if (uriList) {
         const first = uriList.split('\n')[0].trim();
-        if (first.startsWith('file://')) return openLocalFile(first);
+        if (first.startsWith('file://')) {
+          // Resolve folder index via main
+          window.electronAPI.resolveOpenable(first).then(resolved => {
+            if (resolved) openLocalFile(resolved); else openLocalFile(first);
+          });
+          return;
+        }
         return navigateToUrl(first);
     }
 
@@ -120,8 +123,10 @@ function handleFileDrop(event) {
             new URL(text);
             navigateToUrl(text);
         } catch (_) {
-            // Likely a local filesystem path
-            openLocalFile(text);
+            // Likely a local filesystem path; resolve via main
+            window.electronAPI.resolveOpenable(text).then(resolved => {
+              if (resolved) openLocalFile(resolved); else openLocalFile(text);
+            });
         }
     }
 }
@@ -330,6 +335,13 @@ if (dropOverlay) {
   dropOverlay.addEventListener('drop', handleFileDrop);
 }
 
+// Flash border helper
+function flashBorder(ms = 1200) {
+  if (!frameFlash) return;
+  frameFlash.classList.add('active');
+  setTimeout(() => frameFlash.classList.remove('active'), ms);
+}
+
 // IPC event listeners
 // Legacy navigate-to support (guarded)
 if (window.electronAPI.onNavigateTo) {
@@ -384,6 +396,19 @@ window.electronAPI.onDecreaseOpacity(() => {
 
 window.electronAPI.onIncreaseOpacity(() => {
   increaseOpacity();
+});
+
+// Shortcuts from menu
+window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortcut(async () => {
+  const folder = await window.electronAPI.openFolderDialog();
+  if (folder) {
+    const resolved = await window.electronAPI.resolveOpenable(folder);
+    if (resolved) openLocalFile(resolved);
+  }
+});
+
+window.electronAPI.onFlashBorder && window.electronAPI.onFlashBorder(() => {
+  flashBorder();
 });
 
 // Initialize opacity

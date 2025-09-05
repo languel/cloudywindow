@@ -152,3 +152,19 @@ body {
     padding: 8px 12px;
     border-radius: 12px;
 }
+
+/* Frame flash overlay */
+#frame-flash {
+    position: absolute;
+    inset: 0;
+    border: 2px solid rgba(255,255,255,0.8);
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0;
+    z-index: 1600;
+    transition: opacity 0.12s ease;
+}
+
+#frame-flash.active {
+    opacity: 1;
+}

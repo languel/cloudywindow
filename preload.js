@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     openFile: () => ipcRenderer.send('open-file'),
     onFileSelected: (callback) => ipcRenderer.on('selected-file', callback),
     onOpenFileShortcut: (callback) => ipcRenderer.on('open-file-shortcut', callback),
+    onOpenFolderShortcut: (callback) => ipcRenderer.on('open-folder-shortcut', callback),
     onToggleUrlBarShortcut: (callback) => ipcRenderer.on('toggle-url-bar-shortcut', callback),
     onToggleUiShortcut: (callback) => ipcRenderer.on('toggle-ui-shortcut', callback),
     onRedrawWebview: (callback) => ipcRenderer.on('redraw-webview', callback),
@@ -26,5 +27,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onIncreaseOpacity: (callback) => ipcRenderer.on('increase-opacity', callback),
     
     // Add handler for ignore mouse events changes
-    onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback)
+    onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback),
+    onFlashBorder: (callback) => ipcRenderer.on('flash-border', callback),
+    // Resolve directories to index.html in main process
+    resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
+    openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog')
 });

@@ -1,4 +1,5 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu } = require('electron');
+const fs = require('fs');
 const path = require('path');
 
 let windows = new Set(); // Track all windows
@@ -165,6 +166,17 @@ function positionWindowInQuadrant(win, quadrant) {
         height: halfHeight 
       });
       break;
+    case 'bottom-right-1-16': {
+      const w = Math.floor(workArea.width / 4);
+      const h = Math.floor(workArea.height / 4);
+      win.setBounds({
+        x: workArea.x + workArea.width - w,
+        y: workArea.y + workArea.height - h,
+        width: w,
+        height: h,
+      });
+      break;
+    }
     case 'top-half':
       win.setBounds({ 
         x: workArea.x, 
@@ -254,6 +266,14 @@ function createMenu() {
             if (win) win.webContents.send('open-file-shortcut');
           }
         },
+        {
+          label: 'Open Folder...',
+          accelerator: 'CmdOrCtrl+Shift+O',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('open-folder-shortcut');
+          }
+        },
         { type: 'separator' },
         { role: 'close' },
         ...(isMac ? [] : [{ role: 'quit' }])
@@ -290,8 +310,22 @@ function createMenu() {
     {
       label: 'View',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
+        {
+          label: 'Reload Content',
+          accelerator: 'CmdOrCtrl+R',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('reload-content');
+          }
+        },
+        {
+          label: 'Reload App',
+          accelerator: 'CmdOrCtrl+Shift+R',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.reload();
+          }
+        },
         { 
           role: 'toggleDevTools',
           accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I'
@@ -318,7 +352,7 @@ function createMenu() {
         {
           label: 'Click-through Mode',
           type: 'checkbox',
-          // No accelerator here; handled via globalShortcut to allow recovery
+          accelerator: 'Alt+M',
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -328,6 +362,14 @@ function createMenu() {
               win.webContents.send('ignore-mouse-events-changed', menuItem.checked);
               updateWindowMenu(); // Update menu immediately
             }
+          }
+        },
+        {
+          label: 'Flash Border',
+          accelerator: 'CmdOrCtrl+B',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('flash-border');
           }
         },
         { type: 'separator' },
@@ -433,11 +475,11 @@ function createMenu() {
               }
             },
             {
-              label: 'Bottom Half (Shift+F9)',
+              label: 'Bottom Right 1/16 (Shift+F9)',
               accelerator: 'Shift+F9',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) positionWindowInQuadrant(win, 'bottom-half');
+                if (win) positionWindowInQuadrant(win, 'bottom-right-1-16');
               }
             },
             { type: 'separator' },
@@ -566,19 +608,7 @@ app.whenReady().then(async () => {
     closeCurrentWindow();
   });
 
-  // Global shortcut for Click-through Mode to allow recovery even when window is click-through
-  globalShortcut.register('Alt+M', () => {
-    const win = BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0];
-    if (win) {
-      win.isClickThrough = !win.isClickThrough;
-      win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
-      win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
-      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
-      const clickThroughItem = viewMenu?.submenu.items.find(item => item.label === 'Click-through Mode');
-      if (clickThroughItem) clickThroughItem.checked = win.isClickThrough;
-      updateWindowMenu();
-    }
-  });
+  // Removed global Alt+M (menu accelerator provides the shortcut and shows it visibly)
 });
 
 // Move IPC handlers outside of createWindow to avoid registering them multiple times
@@ -597,6 +627,43 @@ ipcMain.on('open-file', async (event) => {
   if (!result.canceled && result.filePaths.length > 0) {
     event.reply('selected-file', result.filePaths[0]);
   }
+});
+
+// Resolve an openable path: if directory, find index.html/htm; returns file path
+ipcMain.handle('resolve-openable', async (_event, inputPath) => {
+  try {
+    if (!inputPath) return null;
+    let p = inputPath;
+    if (p.startsWith('file://')) p = new URL(p).pathname;
+    if (!fs.existsSync(p)) return null;
+    const stat = fs.statSync(p);
+    if (stat.isDirectory()) {
+      const tryFiles = ['index.html', 'index.htm'];
+      for (const f of tryFiles) {
+        const full = path.join(p, f);
+        if (fs.existsSync(full)) return full;
+      }
+      // fallback: first HTML in folder
+      const entries = fs.readdirSync(p);
+      const html = entries.find(e => e.toLowerCase().endsWith('.html') || e.toLowerCase().endsWith('.htm'));
+      if (html) return path.join(p, html);
+      return null;
+    }
+    return p;
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('open-folder-dialog', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win) return null;
+  const result = await dialog.showOpenDialog(win, {
+    properties: ['openDirectory']
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  const p = result.filePaths[0];
+  return p;
 });
 
 // (Removed) legacy navigate/load-url IPC were unused in current renderer
