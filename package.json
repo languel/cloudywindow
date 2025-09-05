@@ -289,11 +289,13 @@
     "electron-builder": "^25.1.8",
     "electron": "^35.0.2"
   },
-    "scripts": {
-      "start": "electron .",
-      "test": "echo \"Error: no test specified\" && exit 1",
-      "build": "electron-builder"
-    },
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "icon": "electron scripts/gen-icon.js",
+    "prebuild": "electron scripts/gen-icon.js",
+    "build": "electron-builder"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/languel/cloudywindow.git"
@@ -306,4 +308,13 @@
   },
   "homepage": "https://github.com/languel/cloudywindow#readme",
   "description": ""
+  ,
+  "build": {
+    "appId": "com.languel.cloudywindow",
+    "mac": {
+      "category": "public.app-category.utilities",
+      "icon": "build/icon.icns",
+      "artifactName": "cloudywindow-${version}-${arch}.${ext}"
+    }
+  }
 }

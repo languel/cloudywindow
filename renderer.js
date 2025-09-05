@@ -1,4 +1,5 @@
 const iframe = document.getElementById('content-frame');
+const dropOverlay = document.getElementById('drop-overlay');
 const urlInput = document.getElementById('url-input');
 const goButton = document.getElementById('go-button');
 const backButton = document.getElementById('back-button');
@@ -64,9 +65,23 @@ function openLocalFile(filePath) {
     navigateToUrl(fileUrl);
 }
 
+let dragCounter = 0;
+
+function showDropOverlay() {
+  if (!dropOverlay) return;
+  dropOverlay.classList.add('active');
+}
+
+function hideDropOverlay() {
+  dragCounter = 0;
+  if (!dropOverlay) return;
+  dropOverlay.classList.remove('active');
+}
+
 function handleFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
+    hideDropOverlay();
 
     const file = event.dataTransfer.files[0];
     if (file) {
@@ -255,12 +270,48 @@ toggleUiButton.addEventListener('click', () => {
     toggleUI();
 });
 
-document.addEventListener('dragover', (event) => {
-  event.preventDefault();
+// Global drag handling (document and iframe) with overlay above the iframe
+['dragenter','dragover'].forEach(type => {
+  document.addEventListener(type, (event) => {
+    event.preventDefault();
     event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    if (type === 'dragenter') dragCounter++;
+    showDropOverlay();
+  });
+  iframe.addEventListener(type, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    if (type === 'dragenter') dragCounter++;
+    showDropOverlay();
+  });
+});
+
+['dragleave'].forEach(type => {
+  document.addEventListener(type, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounter = Math.max(0, dragCounter - 1);
+    if (dragCounter === 0) hideDropOverlay();
+  });
+  iframe.addEventListener(type, (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounter = Math.max(0, dragCounter - 1);
+    if (dragCounter === 0) hideDropOverlay();
+  });
 });
 
 document.addEventListener('drop', handleFileDrop);
+iframe.addEventListener('drop', handleFileDrop);
+if (dropOverlay) {
+  dropOverlay.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  });
+  dropOverlay.addEventListener('drop', handleFileDrop);
+}
 
 // IPC event listeners
 // Legacy navigate-to support (guarded)
