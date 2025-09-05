@@ -3,6 +3,31 @@ const path = require('path');
 
 let windows = new Set(); // Track all windows
 let mainWindow; // The initial window
+let appIcon = null; // Generated emoji icon
+
+async function generateEmojiIcon(emoji = '🌦️', size = 256) {
+  // Create an offscreen window to render the emoji and capture as an image
+  const iconWin = new BrowserWindow({
+    width: size,
+    height: size,
+    show: false,
+    frame: false,
+    transparent: true,
+    webPreferences: {
+      offscreen: true,
+    }
+  });
+  const html = `<!doctype html><meta charset="utf-8"><style>
+    html,body{margin:0;height:100%;width:100%;background:transparent;}
+    body{display:flex;align-items:center;justify-content:center;}
+    .e{font-size:${Math.floor(size*0.8)}px;line-height:1;}
+    .e{font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', system-ui, sans-serif;}
+  </style><div class="e">${emoji}</div>`;
+  await iconWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html));
+  const image = await iconWin.capturePage();
+  iconWin.destroy();
+  return image.resize({ width: size, height: size });
+}
 
 function createWindow() {
   const newWindow = new BrowserWindow({
@@ -11,6 +36,7 @@ function createWindow() {
     transparent: true,
     frame: false,
     backgroundColor: '#00000000',
+    icon: appIcon || undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true, // Required for security
@@ -292,7 +318,7 @@ function createMenu() {
         {
           label: 'Click-through Mode',
           type: 'checkbox',
-          accelerator: 'Alt+M',
+          // No accelerator here; handled via globalShortcut to allow recovery
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -509,10 +535,20 @@ function updateWindowMenu() {
   createMenu();
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  // Generate emoji icon before creating any windows
+  try {
+    appIcon = await generateEmojiIcon('🌦️', 256);
+    if (process.platform === 'darwin' && appIcon) {
+      app.dock.setIcon(appIcon);
+    }
+  } catch (e) {
+    console.warn('Icon generation failed, continuing without custom icon', e);
+  }
+
   // Create menu before creating any windows
   createMenu();
-  
+
   createWindow();
 
   app.on('activate', () => {
@@ -530,6 +566,19 @@ app.whenReady().then(() => {
     closeCurrentWindow();
   });
 
+  // Global shortcut for Click-through Mode to allow recovery even when window is click-through
+  globalShortcut.register('Alt+M', () => {
+    const win = BrowserWindow.getFocusedWindow() || mainWindow || BrowserWindow.getAllWindows()[0];
+    if (win) {
+      win.isClickThrough = !win.isClickThrough;
+      win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
+      win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
+      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
+      const clickThroughItem = viewMenu?.submenu.items.find(item => item.label === 'Click-through Mode');
+      if (clickThroughItem) clickThroughItem.checked = win.isClickThrough;
+      updateWindowMenu();
+    }
+  });
 });
 
 // Move IPC handlers outside of createWindow to avoid registering them multiple times

@@ -32,12 +32,13 @@
         /* Avoid backdrop-filter to prevent compositor artifacts on transparent windows */
         /* backdrop-filter: blur(6px); */
         letter-spacing: 0.2px;
+        transition: opacity 0.35s ease;
       }
     </style>
   </head>
   <body>
     <div id="sketch-holder"></div>
-    <div class="hint">Drag to doodle • Double-click to clear • Eyes follow you</div>
+    <div class="hint" id="hint">Drag to doodle • Double-click to clear • Eyes follow you</div>
 
     <!-- p5.js from CDN (works in local file iframe) -->
     <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
@@ -79,14 +80,37 @@
         randomSeed(42);
         noiseSeed(42);
         puffs = [];
-        const parts = 7;
-        for (let i = 0; i < parts; i++) {
-          const t = i / (parts - 1);
-          const ox = map(t, 0, 1, -0.36, 0.36) + random(-0.02, 0.02);
-          const oy = random(-0.06, 0.06);
-          const sx = random(0.42, 0.58);
-          const sy = random(0.46, 0.62);
-          const a = random(180, 235);
+        // Top row of big puffs
+        const topCount = 7;
+        for (let i = 0; i < topCount; i++) {
+          const t = i / (topCount - 1);
+          const ox = map(t, 0, 1, -0.42, 0.42) + random(-0.03, 0.03);
+          const oy = random(-0.12, 0.00);
+          const sx = random(0.44, 0.64);
+          const sy = random(0.48, 0.66);
+          const a = random(190, 240);
+          puffs.push({ ox, oy, sx, sy, a });
+        }
+        // Side smaller puffs (child-like scallops)
+        const sideCount = 4;
+        for (let i = 0; i < sideCount; i++) {
+          const side = i < 2 ? -1 : 1;
+          const ox = side * random(0.48, 0.58);
+          const oy = random(-0.04, 0.12);
+          const sx = random(0.30, 0.42);
+          const sy = random(0.36, 0.48);
+          const a = random(170, 220);
+          puffs.push({ ox, oy, sx, sy, a });
+        }
+        // Bottom scallops
+        const bottomCount = 3;
+        for (let i = 0; i < bottomCount; i++) {
+          const t = i / (bottomCount - 1);
+          const ox = map(t, 0, 1, -0.30, 0.30) + random(-0.02, 0.02);
+          const oy = random(0.12, 0.20);
+          const sx = random(0.38, 0.52);
+          const sy = random(0.36, 0.52);
+          const a = random(150, 200);
           puffs.push({ ox, oy, sx, sy, a });
         }
       }
@@ -161,12 +185,12 @@
       function drawCloud(x, y, w, h) {
         noStroke();
         // Soft main belly
-        fill(0, 0, 100, 235);
-        ellipse(x, y + h * 0.04, w * 0.92, h * 0.92);
-        // Side puffs
+        fill(0, 0, 100, 240);
+        ellipse(x, y + h * 0.02, w * 0.84, h * 0.82);
+        // Puffy parts
         for (let p of puffs) {
           fill(0, 0, 100, p.a);
-          ellipse(x + p.ox * w, y + p.oy * h, w * p.sx * 0.52, h * p.sy * 0.62);
+          ellipse(x + p.ox * w, y + p.oy * h, w * p.sx * 0.62, h * p.sy * 0.70);
         }
       }
 
@@ -184,6 +208,7 @@
         const hue = (frameCount * 2) % 360;
         currentStroke = { color: color(hue, 35, 100, 210), weight: 3, points: [] };
         currentStroke.points.push({ x: mouseX, y: mouseY });
+        hideHint();
       }
 
       function mouseDragged() {
@@ -208,6 +233,15 @@
           doodles = [];
         }
       }
+      // Hint hide after 8 seconds or on first interaction
+      function hideHint() {
+        const h = document.getElementById('hint');
+        if (!h || h.dataset.hidden === '1') return;
+        h.style.opacity = 0;
+        h.dataset.hidden = '1';
+        setTimeout(() => { if (h) h.style.display = 'none'; }, 400);
+      }
+      setTimeout(hideHint, 8000);
     </script>
   </body>
 </html>

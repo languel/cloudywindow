@@ -57,18 +57,18 @@ Notes:
 - Local builds will skip code signing unless you have a Developer ID certificate configured. Signed builds are required for public distribution on macOS.
 
 ## Demos
-The app loads `default.html` by default. There are additional local demos you can open with the URL input or by dropping files into the window:
+The app loads `companion.html` by default. There are additional local demos you can open with the URL input or by dropping files into the window:
 
-- `default.html` - welcome page with shortcuts
-- `companion.html` - transparent desktop companion demo (cloud with googly eyes and doodling). Open with `file://` URL or drop it into the window.
+- `companion.html` - transparent desktop companion demo (cloud with googly eyes and doodling)
+- `default-minimal.html` - minimal transparent page with emoji
 
-Example to open the companion demo from the URL bar:
+Example to open the minimal default from the URL bar:
 ```
-file://<path-to-repo>/companion.html
+file://<path-to-repo>/default-minimal.html
+```
 
 ## Notes
 - PDFs: Opening PDFs directly is not guaranteed inside an iframe and may be blocked by platform/engine support. HTML is fully supported. For robust PDF viewing, consider opening in the system browser or switching the app to use Electron `<webview>`.
-```
 
 ## License
 MIT
