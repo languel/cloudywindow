@@ -8,6 +8,7 @@ body {
     position: absolute;
     inset: 0;
     opacity: 1;
+    isolation: isolate; /* keep composition isolated to this subtree */
 }
 
 #ui-container {
@@ -76,6 +77,7 @@ body {
     height: 100%;
     border: none; /* Remove iframe border */
     z-index: 2;
+    contain: paint; /* isolate painting to reduce afterimages */
 }
 
 /* Invisible drag region at the very top when UI is hidden */

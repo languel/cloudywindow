@@ -373,6 +373,14 @@ function createMenu() {
             if (win) win.webContents.send('flash-border');
           }
         },
+        {
+          label: 'Hard Flush Content',
+          accelerator: 'CmdOrCtrl+Shift+F',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('hard-flush');
+          }
+        },
         { type: 'separator' },
         {
           label: 'Background Opacity',
@@ -382,7 +390,7 @@ function createMenu() {
               accelerator: 'Alt+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-bg-opacity', 0.0);
+                if (win) { win.webContents.send('set-bg-opacity', 0.0); win.webContents.send('hard-flush'); }
               }
             },
             {
@@ -390,7 +398,7 @@ function createMenu() {
               accelerator: 'Alt+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-bg-opacity', 0.5);
+                if (win) { win.webContents.send('set-bg-opacity', 0.5); win.webContents.send('hard-flush'); }
               }
             },
             {
@@ -398,7 +406,7 @@ function createMenu() {
               accelerator: 'Alt+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-bg-opacity', 1.0);
+                if (win) { win.webContents.send('set-bg-opacity', 1.0); win.webContents.send('hard-flush'); }
               }
             },
             { type: 'separator' },
@@ -428,7 +436,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-overall-opacity', 0.0);
+                if (win) { win.webContents.send('set-overall-opacity', 0.0); win.webContents.send('hard-flush'); }
               }
             },
             {
@@ -436,7 +444,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-overall-opacity', 0.5);
+                if (win) { win.webContents.send('set-overall-opacity', 0.5); win.webContents.send('hard-flush'); }
               }
             },
             {
@@ -444,7 +452,7 @@ function createMenu() {
               accelerator: 'CmdOrCtrl+Shift+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) win.webContents.send('set-overall-opacity', 1.0);
+                if (win) { win.webContents.send('set-overall-opacity', 1.0); win.webContents.send('hard-flush'); }
               }
             },
             { type: 'separator' },

@@ -80,6 +80,10 @@ file://<path-to-repo>/default-minimal.html
   - `npm run icon` (creates `build/icon.icns`), then `npm run build`.
   - If icon creation fails in CI/headless, the build continues with the default Electron icon.
 
+## Docs
+- Product requirements and plan: `docs/PRD.md`
+- Dev log of solutions and challenges: `docs/DEVLOG.md`
+
 ## macOS Unsigned Builds (Gatekeeper)
 If you distribute an unsigned build to students, macOS may block it. Options:
 

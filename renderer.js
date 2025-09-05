@@ -30,7 +30,8 @@ function setBackgroundOpacity(opacity) {
   if (backdrop) {
     backdrop.style.backgroundColor = `rgba(0, 0, 0, ${opacity})`;
   }
-  forceIframeRedraw();
+  // Aggressive flush to avoid any compositor afterimages
+  hardFlushWebview();
 }
 
 function decreaseOpacity() {
@@ -44,11 +45,13 @@ function increaseOpacity() {
 // Force the iframe to re-composite to avoid transparency artifacts on some GPUs
 function forceIframeRedraw() {
   if (!iframe) return;
-  const prev = iframe.style.transform || '';
-  // Nudge compositor: brief scale tweak + translateZ
-  iframe.style.transform = prev + ' translateZ(0) scale(1.0001)';
+  // Strategy: briefly hide the webview to drop its compositor cache, then restore next frame.
+  const prevVis = iframe.style.visibility || '';
+  iframe.style.visibility = 'hidden';
+  // Force reflow
+  void iframe.offsetHeight;
   requestAnimationFrame(() => {
-    iframe.style.transform = prev || '';
+    iframe.style.visibility = prevVis;
   });
 }
 
@@ -152,8 +155,8 @@ function toggleUI() {
     uiContainer.style.backgroundColor = 'transparent';
     uiContainer.style.visibility = 'hidden';
   }
-  // Nudge compositor so the iframe doesn't capture stale pixels
-  forceIframeRedraw();
+  // Hard flush to prevent afterimages
+  hardFlushWebview();
 }
 
 function setupResizeHandlers() {
@@ -246,6 +249,20 @@ function setupResizeHandlers() {
 
 function clearIframeContent() {
     iframe.src = 'about:blank';
+}
+
+// Aggressive flush: briefly remove the webview from flow to drop compositor cache, then restore
+function hardFlushWebview() {
+  if (!iframe) return;
+  const prev = iframe.style.display || '';
+  iframe.style.display = 'none';
+  // Force reflow
+  void iframe.offsetHeight;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      iframe.style.display = prev;
+    });
+  });
 }
 
 // Event Listeners
@@ -422,9 +439,8 @@ let overallOpacity = 1.0;
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 function setOverallOpacity(v) {
   overallOpacity = clamp01(v);
-  if (contentRoot) contentRoot.style.opacity = String(overallOpacity);
-  // Nudge webview to avoid afterburn artifacts
-  forceIframeRedraw();
+  if (iframe) iframe.style.opacity = String(overallOpacity);
+  setBackgroundOpacity(overallOpacity);
 }
 function incOverallOpacity(delta) { setOverallOpacity(overallOpacity + delta); }
 
@@ -443,6 +459,10 @@ window.electronAPI.onOpenFolderShortcut && window.electronAPI.onOpenFolderShortc
 
 window.electronAPI.onFlashBorder && window.electronAPI.onFlashBorder(() => {
   flashBorder();
+});
+
+window.electronAPI.onHardFlush && window.electronAPI.onHardFlush(() => {
+  hardFlushWebview();
 });
 
 // Initialize opacity
