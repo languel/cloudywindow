@@ -26,9 +26,9 @@ This document tracks notable issues, decisions, and fixes while developing the w
 - Shortcuts (current)
   - Toggle UI: Cmd+Opt+U
   - Background opacity presets: Opt+Shift+0/5/1; step: Opt+Shift+[ / ]
-  - Overall opacity presets: Cmd+Shift+5/1; step: Cmd+Alt+[ / ]
-  - BG 0% shortcut: Cmd+Shift+0 (BG only, content unchanged)
-  - Hard Flush Content: Cmd+Shift+F; Pre‑Draw Hard Flush (toggle); Canvas Safe Mode (toggle)
+  - Overall opacity presets: Cmd+Opt+0/5/1; step: Cmd+Opt+[ / ]
+  - Apply transparency CSS: Cmd+Opt+T (manual, site‑aware + generic)
+  - Hard Flush Content: Cmd+Opt+F; Pre‑Draw Hard Flush (toggle); Canvas Safe Mode (toggle)
 
 - Security notes
   - Removed `allowpopups` from `<webview>` in dev to prevent warnings.

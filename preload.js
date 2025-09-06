@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onIgnoreMouseEventsChanged: (callback) => ipcRenderer.on('ignore-mouse-events-changed', callback),
     onFlashBorder: (callback) => ipcRenderer.on('flash-border', callback),
     onHardFlush: (callback) => ipcRenderer.on('hard-flush', callback),
+    onApplyTransparencyCSS: (callback) => ipcRenderer.on('apply-transparency-css', callback),
     onWindowBgAlpha: (callback) => ipcRenderer.on('window-bg-alpha', callback),
     onCanvasSafeMode: (callback) => ipcRenderer.on('canvas-safe-mode', callback),
     onPreDrawFlushToggle: (callback) => ipcRenderer.on('pre-draw-flush-toggle', callback),

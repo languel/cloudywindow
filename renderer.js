@@ -508,12 +508,33 @@ setupResizeHandlers();
 function injectSiteCSS(url) {
   if (!iframe || typeof iframe.insertCSS !== 'function') return;
   const u = (url || '').toLowerCase();
+  const isHttp = /^https?:\/\//.test(u);
   // tldraw: remove white backgrounds
   if (u.includes('tldraw')) {
+    // Broaden selectors and variables to also cover signed-in app shell
     const css = `
-      :root,.tla-theme-container{--tla-color-sidebar:hsla(0 0% 99% / 0)!important;--tla-color-background:hsla(0 0% 99% / 0)!important}
-      html,body,#root,.tla,.tla-theme-container,.tl-container{background:transparent!important}
-      .tl-background,canvas,svg{background:transparent!important}
+      /* Theme variables (old/new TLDraw tokens) */
+      :root,
+      .tla-theme-container,
+      [data-tl-theme],
+      [data-theme],
+      [data-color-mode] {
+        --tla-color-sidebar: hsla(0 0% 100% / 0) !important;
+        --tla-color-background: hsla(0 0% 100% / 0) !important;
+        --tl-color-background: hsla(0 0% 100% / 0) !important;
+        --tlui-color-background: hsla(0 0% 100% / 0) !important;
+        --tlui-color-panel: hsla(0 0% 100% / 0) !important;
+      }
+      /* Core containers and UI shells */
+      html, body, #root, .tla, .tla-theme-container, .tl-container,
+      .tlui, .tlui__editor, .tlui__container, .tlui__page, .tlui__panel,
+      .tldraw, .tldraw__editor, .tl, .tl-theme {
+        background: transparent !important;
+      }
+      /* Canvas / background planes */
+      .tl-background, .tlui-canvas, canvas, svg, [class*='canvas'] {
+        background: transparent !important;
+      }
     `;
     try { iframe.insertCSS(css); } catch (_) {}
   }
@@ -532,9 +553,76 @@ function injectSiteCSS(url) {
         const rm = ['blackscreen','whitescreen','greenscreen'];
         document.documentElement && document.documentElement.classList && document.documentElement.classList.remove(...rm);
         document.body && document.body.classList && document.body.classList.remove(...rm);
-      })();`);
+      })();`).catch(() => {});
     } catch (_) {}
   }
+
+  // unit.moe — attempt to clear common backgrounds for the editor/app shell
+  if (u.includes('unit.moe')) {
+    const css = `
+      html, body, #root, #__next, .app, .App, .container, .content, .editor, .workspace, .canvas,
+      [class*='app'], [class*='container'], [class*='editor'], [class*='canvas'] { background: transparent !important; }
+      canvas, svg { background: transparent !important; }
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+  }
+
+  // Optional generic pass (safer to use on-demand via shortcut)
+}
+
+// Install a guest-page MutationObserver to keep clearing background styles that are reapplied dynamically
+function installTransparencyGuard(url) {
+  if (!iframe || typeof iframe.executeJavaScript !== 'function') return;
+  const u = (url || '').toLowerCase();
+  if (!(u.includes('tldraw') || u.includes('unit.moe'))) return;
+  const script = `(() => {
+    try {
+      if (window.__cloudy_transparency_guard_installed) return;
+      window.__cloudy_transparency_guard_installed = true;
+      const setVars = (el) => {
+        if (!el || !el.style) return;
+        const vars = ['--tla-color-background','--tla-color-sidebar','--tl-color-background','--tlui-color-background','--tlui-color-panel'];
+        for (const v of vars) { try { el.style.setProperty(v, 'hsla(0,0%,100%,0)', 'important'); } catch (_) {} }
+      };
+      const clearBg = () => {
+        try {
+          const roots = [document.documentElement, document.body];
+          roots.forEach(r => { if (r) { try { r.style.setProperty('background','transparent','important'); r.style.setProperty('background-color','transparent','important'); } catch(_) {} setVars(r); } });
+          const sels = [
+            'html','body','#root','#__next','.tla','.tla-theme-container','.tl-container',
+            '.tlui','.tlui__editor','.tlui__container','.tlui__page','.tlui__panel',
+            '.tldraw','.tldraw__editor','.tl','.tl-theme',
+            '.app','.App','.container','.content','.editor','.workspace','.canvas',
+            "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]"
+          ];
+          const nodes = document.querySelectorAll(sels.join(','));
+          nodes.forEach(el => {
+            try { el.style.setProperty('background','transparent','important'); el.style.setProperty('background-color','transparent','important'); } catch(_) {}
+          });
+        } catch (_) {}
+      };
+      clearBg();
+      const obs = new MutationObserver(() => { clearBg(); });
+      obs.observe(document.documentElement, { attributes:true, attributeFilter:['class','style'], childList:true, subtree:true });
+      window.__cloudy_transparency_guard = obs;
+      // Also periodically reinforce for a short window after install
+      let n = 0;
+      const id = setInterval(() => { try { clearBg(); } catch (_) {} if (++n > 20) clearInterval(id); }, 250);
+    } catch (_) {}
+  })();`;
+  try { iframe.executeJavaScript(script).catch(() => {}); } catch (_) {}
+}
+
+// Forceful generic transparency pass (manual trigger). Tries to be broad but not too destructive.
+function injectGenericTransparency() {
+  if (!iframe || typeof iframe.insertCSS !== 'function') return;
+  const css = `
+    html, body, #root, #__next, .app, .container, .content, .editor, .workspace, .main, .page {
+      background: transparent !important;
+    }
+    canvas, svg { background: transparent !important; }
+  `;
+  try { iframe.insertCSS(css); } catch (_) {}
 }
 
 if (iframe) {
@@ -563,6 +651,18 @@ if (iframe) {
   iframe.addEventListener('did-navigate', (_e) => {
     // Update URL bar with current location
     try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
+    // Reapply site CSS on full navigations
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+  });
+  // Reapply site CSS on in-page navigations (SPA route changes)
+  iframe.addEventListener('did-navigate-in-page', (_e) => {
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+  });
+
+  // Manual transparency shortcut handler
+  window.electronAPI.onApplyTransparencyCSS && window.electronAPI.onApplyTransparencyCSS(() => {
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    injectGenericTransparency();
   });
   // Bridge DnD events coming from the guest page via preload
   iframe.addEventListener('ipc-message', (event) => {

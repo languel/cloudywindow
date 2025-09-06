@@ -34,18 +34,19 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 
 ## Shortcuts (current)
 
-- Open file: `Cmd+O`
-- Open folder (index.html): `Cmd+Shift+O`
-- Reload content: `Cmd+R` (webview)
-- Reload app: `Cmd+Shift+R`
+- Open file: `Cmd+Opt+O`
+- Open folder (index.html): `Opt+Shift+O`
+- Reload content: `Cmd+Opt+R` (webview)
+- Reload app: `Opt+Shift+R`
 - Toggle UI: `Cmd+Opt+U`
-- Toggle URL bar: `Cmd+L`
-- Always‑on‑Top: `Alt+T`
-- Click‑through: `Alt+M`
-- Flash border: `Cmd+B`
+- Go to URL bar: `Cmd+Opt+L`
+- Always‑on‑Top: `Opt+Shift+T`
+- Click‑through: `Opt+Shift+M`
+- Flash border: `Cmd+Opt+B`
 - Background opacity: `Opt+Shift+0/5/1`, step `Opt+Shift+[ / ]`
-- Overall (content) opacity: `Cmd+Shift+5/1`, step `Cmd+Alt+[ / ]`
-- Hard flush content: `Cmd+Shift+F`
+- Overall (content) opacity: `Cmd+Opt+0/5/1`, step `Cmd+Opt+[ / ]`
+- Hard flush content: `Cmd+Opt+F`
+- Apply transparency CSS (manual): `Cmd+Opt+T`
 - Window background alpha: View menu → Transparent (0%) or Near Transparent (1%)
 
 ---

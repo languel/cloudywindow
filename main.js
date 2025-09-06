@@ -230,6 +230,18 @@ function positionWindowInQuadrant(win, quadrant) {
         height: centerHeight
       });
       break;
+    case 'overscan-center-110': {
+      // Centered at ~110% of work area to push site UI offscreen
+      const w = Math.floor(workArea.width * 1.3);
+      const h = Math.floor(workArea.height * 1);
+      win.setBounds({
+        x: workArea.x + Math.floor((workArea.width - w) / 2),
+        y: workArea.y + Math.floor((workArea.height - h) / 2),
+        width: w,
+        height: h,
+      });
+      break;
+    }
   }
 }
 
@@ -257,12 +269,12 @@ function createMenu() {
       submenu: [
         {
           label: 'New Window',
-          accelerator: 'CmdOrCtrl+N',
+          accelerator: 'CmdOrCtrl+Alt+N',
           click: () => { createWindow(); }
         },
         {
           label: 'Open File...',
-          accelerator: 'CmdOrCtrl+O',
+          accelerator: 'CmdOrCtrl+Alt+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-file-shortcut');
@@ -270,7 +282,7 @@ function createMenu() {
         },
         {
           label: 'Open Folder...',
-          accelerator: 'CmdOrCtrl+Shift+O',
+          accelerator: 'Alt+Shift+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-folder-shortcut');
@@ -314,7 +326,7 @@ function createMenu() {
       submenu: [
         {
           label: 'Reload Content',
-          accelerator: 'CmdOrCtrl+R',
+          accelerator: 'CmdOrCtrl+Alt+R',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('reload-content');
@@ -322,15 +334,11 @@ function createMenu() {
         },
         {
           label: 'Reload App',
-          accelerator: 'CmdOrCtrl+Shift+R',
+          accelerator: 'Alt+Shift+R',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.reload();
           }
-        },
-        { 
-          role: 'toggleDevTools',
-          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I'
         },
         { type: 'separator' },
         { role: 'resetZoom' },
@@ -343,10 +351,11 @@ function createMenu() {
           label: 'Always on Top',
           type: 'checkbox',
           accelerator: 'Alt+Shift+T',
-          click: (menuItem) => {
+          click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
-              win.setAlwaysOnTop(menuItem.checked);
+              const next = !win.isAlwaysOnTop();
+              win.setAlwaysOnTop(next);
               updateWindowMenu(); // Update menu immediately
             }
           }
@@ -368,37 +377,12 @@ function createMenu() {
         },
         {
           label: 'Flash Border',
-          accelerator: 'CmdOrCtrl+B',
+          accelerator: 'CmdOrCtrl+Alt+B',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('flash-border');
           }
         },
-        {
-          label: 'Hard Flush Content',
-          accelerator: 'CmdOrCtrl+Shift+F',
-          click: () => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('hard-flush');
-          }
-        },
-        {
-          label: 'Pre‑Draw Hard Flush',
-          type: 'checkbox',
-          click: (menuItem) => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('pre-draw-flush-toggle', menuItem.checked);
-          }
-        },
-        {
-          label: 'Canvas Safe Mode (disable accelerated 2D)',
-          type: 'checkbox',
-          click: (menuItem) => {
-            const win = BrowserWindow.getFocusedWindow();
-            if (win) win.webContents.send('canvas-safe-mode', menuItem.checked);
-          }
-        },
-        { type: 'separator' },
         {
           label: 'Background Opacity',
           submenu: [
@@ -449,16 +433,16 @@ function createMenu() {
           label: 'Overall Opacity',
           submenu: [
             {
-              label: 'BG 0% (transparent only)',
-              accelerator: 'CmdOrCtrl+Shift+0',
+              label: '0%',
+              accelerator: 'CmdOrCtrl+Alt+0',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) { win.webContents.send('set-bg-opacity', 0.0); }
+                if (win) { win.webContents.send('set-overall-opacity', 0.0); }
               }
             },
             {
               label: '50%',
-              accelerator: 'CmdOrCtrl+Shift+5',
+              accelerator: 'CmdOrCtrl+Alt+5',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) { win.webContents.send('set-overall-opacity', 0.5); }
@@ -466,7 +450,7 @@ function createMenu() {
             },
             {
               label: '100%',
-              accelerator: 'CmdOrCtrl+Shift+1',
+              accelerator: 'CmdOrCtrl+Alt+1',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) { win.webContents.send('set-overall-opacity', 1.0); }
@@ -474,7 +458,7 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Cmd+Alt+[)',
+              label: 'Decrease (Cmd+Opt+[)',
               accelerator: 'CmdOrCtrl+Alt+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -482,7 +466,7 @@ function createMenu() {
               }
             },
             {
-              label: 'Increase (Cmd+Alt+])',
+              label: 'Increase (Cmd+Opt+])',
               accelerator: 'CmdOrCtrl+Alt+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -492,34 +476,6 @@ function createMenu() {
           ]
         },
         {
-          label: 'Window Background Alpha',
-          submenu: [
-            {
-              label: 'Transparent (0%)',
-              click: () => {
-                const win = BrowserWindow.getFocusedWindow();
-                if (win) { 
-                  win.setBackgroundColor('#00000000');
-                  win.webContents.send('window-bg-alpha', 0);
-                  win.webContents.send('hard-flush'); 
-                }
-              }
-            },
-            {
-              label: 'Near Transparent (1%)',
-              click: () => {
-                const win = BrowserWindow.getFocusedWindow();
-                if (win) { 
-                  win.setBackgroundColor('#00000001'); 
-                  win.webContents.send('window-bg-alpha', 1);
-                  // no immediate flush needed; let changes settle
-                }
-              }
-            }
-          ]
-        },
-        { type: 'separator' },
-        {
           label: 'Toggle UI',
           accelerator: 'CmdOrCtrl+Alt+U',
           click: () => {
@@ -528,8 +484,8 @@ function createMenu() {
           }
         },
         {
-          label: 'Toggle URL Bar',
-          accelerator: 'CmdOrCtrl+L',
+          label: 'Go to URL Bar',
+          accelerator: 'CmdOrCtrl+Alt+L',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('toggle-url-bar-shortcut');
@@ -537,10 +493,80 @@ function createMenu() {
         },
         {
           label: 'Go to URL',
-          accelerator: 'CmdOrCtrl+G',
+          accelerator: 'CmdOrCtrl+Alt+G',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('go-to-url');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Developer',
+          submenu: [
+            {
+              label: 'Apply Transparency CSS',
+              accelerator: 'CmdOrCtrl+Alt+T',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('apply-transparency-css');
+              }
+            },
+            {
+              label: 'Hard Flush Content',
+              accelerator: 'CmdOrCtrl+Alt+F',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('hard-flush');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Pre‑Draw Hard Flush',
+              type: 'checkbox',
+              click: (menuItem) => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('pre-draw-flush-toggle', menuItem.checked);
+              }
+            },
+            {
+              label: 'Canvas Safe Mode (disable accelerated 2D)',
+              type: 'checkbox',
+              click: (menuItem) => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('canvas-safe-mode', menuItem.checked);
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'transparent window background',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) {
+                  win.setBackgroundColor('#00000000');
+                  win.webContents.send('window-bg-alpha', 0);
+                  win.webContents.send('hard-flush');
+                }
+              }
+            },
+            {
+              label: 'almost transparent window background',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) {
+                  win.setBackgroundColor('#00000001');
+                  win.webContents.send('window-bg-alpha', 1);
+                  // no immediate flush needed; let changes settle
+                }
+              }
+            }
+          ]
+        },
+        {
+          label: 'Open Developer Tools',
+          accelerator: isMac ? 'Alt+Command+I' : 'Ctrl+Shift+I',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.openDevTools({ mode: 'detach' });
           }
         },
         
@@ -579,6 +605,14 @@ function createMenu() {
                 if (win) positionWindowInQuadrant(win, 'full-screen');
               }
             },
+            {
+              label: 'Centered Overscan (Shift+F11)',
+              accelerator: 'Shift+F11',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'overscan-center-110');
+              }
+            },
             { type: 'separator' },
             {
               label: 'Left Half (Shift+F7)',
@@ -605,11 +639,11 @@ function createMenu() {
               }
             },
             {
-              label: 'Bottom Right 1/16 (Shift+F9)',
+              label: 'Bottom Half (Shift+F9)',
               accelerator: 'Shift+F9',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
-                if (win) positionWindowInQuadrant(win, 'bottom-right-1-16');
+                if (win) positionWindowInQuadrant(win, 'bottom-half');
               }
             },
             { type: 'separator' },
@@ -643,6 +677,15 @@ function createMenu() {
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) positionWindowInQuadrant(win, 'bottom-right');
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Bottom Right 1/16 (Shift+F12)',
+              accelerator: 'Shift+F12',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) positionWindowInQuadrant(win, 'bottom-right-1-16');
               }
             }
           ]

@@ -35,21 +35,23 @@ A transparent, borderless browser overlay built with Electron.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.
 - Keyboard shortcuts:
-  - `Cmd+O` — Open file
-  - `Cmd+Shift+O` — Open folder (loads `index.html` if present)
+  - `Cmd+Opt+O` — Open file
+  - `Opt+Shift+O` — Open folder (loads `index.html` if present)
   - `Cmd+Opt+U` — Toggle UI visibility
-  - `Cmd+L` — Toggle URL bar
-  - `Cmd+R` — Reload content (webview)
-  - `Cmd+Shift+R` — Reload app window
-  - `Cmd+B` — Flash border (quick orientation)
+  - `Cmd+Opt+L` — Go to URL bar
+  - `Cmd+Opt+R` — Reload content (webview)
+  - `Opt+Shift+R` — Reload app window
+  - `Cmd+Opt+B` — Flash border (quick orientation)
   - `Cmd+W` — Close window
   - `Cmd+Plus/Minus/0` — Zoom in/out/reset
   - Background opacity: `Opt+Shift+0/5/1`, step `Opt+Shift+[ / ]`
-  - Overall (content) opacity: `Cmd+Shift+5/1`, step `Cmd+Alt+[ / ]`
-  - BG 0% only: `Cmd+Shift+0`
+  - Overall (content) opacity: `Cmd+Opt+0/5/1`, step `Cmd+Opt+[ / ]`
+  - Apply transparency CSS (manual): `Cmd+Opt+T`
   - `Opt+Shift+T` — Toggle Always‑on‑Top
   - `Opt+Shift+M` — Toggle Click‑through mode (global; recovery)
-  - `Shift+F9` — Bottom‑right 1/16 size (1/4×1/4)
+  - `Shift+F9` — Bottom half
+  - `Shift+F12` — Bottom‑right 1/16 size (1/4×1/4)
+  - `Shift+F11` — Centered overscan (push site UI offscreen)
 
 ## Packaging
 This repository uses electron-builder as the canonical packager and outputs artifacts into `dist/` by default.
@@ -76,7 +78,7 @@ file://<path-to-repo>/default-minimal.html
 ## Notes
 - Webview is used for content: drag & drop and per‑site CSS injection are supported.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
-- Drag & Drop: Some pages may intercept drops; use `Cmd+O` / `Cmd+Shift+O` if needed.
+- Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
 
 ## Build Icon (macOS)
 - To embed a macOS app icon generated from the 🌦️ emoji:
