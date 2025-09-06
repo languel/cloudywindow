@@ -35,11 +35,14 @@ async function renderEmoji(size) {
     body{display:flex;align-items:center;justify-content:center}
     .e{font-size:${Math.floor(size * 0.8)}px;line-height:1;font-family:'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji',system-ui,sans-serif}
   </style><div class=\"e\">${EMOJI}</div>`;
-  await new Promise((resolve, reject) => {
-    win.webContents.once('did-finish-load', resolve);
-    win.webContents.once('did-fail-load', (_e, code, desc) => reject(new Error(`did-fail-load ${code} ${desc}`)));
-    win.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(html)).catch(reject);
-  });
+  // Write to a temporary HTML file and load it as a file:// URL (most robust)
+  const os = require('os');
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cw-icon-'));
+  const tmpHtml = path.join(tmpDir, 'emoji.html');
+  fs.writeFileSync(tmpHtml, html, 'utf8');
+  await win.loadFile(tmpHtml);
+  // Give fonts a tick to render
+  await new Promise(r => setTimeout(r, 30));
   const image = await win.capturePage();
   win.destroy();
   return image.resize({ width: size, height: size });
@@ -54,6 +57,8 @@ async function main() {
   if (!fs.existsSync(OUT_DIR)) fs.mkdirSync(OUT_DIR, { recursive: true });
   if (!fs.existsSync(ICONSET)) fs.mkdirSync(ICONSET, { recursive: true });
 
+  // Disable HW acceleration to make offscreen capture more deterministic
+  try { app.disableHardwareAcceleration(); } catch {}
   await app.whenReady();
 
   for (const t of targets) {
