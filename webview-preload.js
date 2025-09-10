@@ -105,13 +105,14 @@ function __zap_createHUD() {
     b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { handler(); } catch(_){} });
     return b;
   };
+  const btnP = mkBtn('📄', 'Page/Root Transparent (P) — try to clear page background', () => { __zap_auto('page'); });
   const btnT = mkBtn('🫥', 'Transparent (T) — auto‑zap: make background transparent', () => { __zap_auto('transparent'); });
   const btnH = mkBtn('🙈', 'Hide (H) — auto‑zap: hide element', () => { __zap_auto('hide'); });
   const btnZ = mkBtn('↩️', 'Undo (Z) — undo last auto‑zap preview', () => { __zap_undo(); });
   const btnR = mkBtn('♻️', 'Reset (R) — remove previews and user rules for this host', () => { __zap_reset(); });
   const btnDone = mkBtn('✅', 'Done (Enter) — finish picking and send to editor', () => { __zap_commit(); });
   const btnCancel = mkBtn('✖️', 'Cancel (Esc) — cancel picker', () => { __zap_cancel(); });
-  box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnR); box.appendChild(btnDone); box.appendChild(btnCancel);
+  box.appendChild(btnP); box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnR); box.appendChild(btnDone); box.appendChild(btnCancel);
   document.documentElement.appendChild(box);
   return box;
 }
@@ -120,10 +121,19 @@ function __zap_auto(kind) {
   if (!__zap_active) return;
   const el = __zap_lastEl;
   const selector = __zap_computeSelector(el);
-  if (!selector) return;
-  const cssText = kind === 'hide'
-    ? `${selector}{display:none!important}`
-    : `${selector}{background:transparent!important;background-color:transparent!important}`;
+  let cssText = '';
+  if (kind === 'hide') {
+    if (!selector) return;
+    cssText = `${selector}{display:none!important}`;
+  } else if (kind === 'page') {
+    cssText = [
+      'html,body,#root,#__next,#app,.app,.container,.content,.editor,.workspace,.main,.page{background:transparent!important;background-color:transparent!important}',
+      'canvas,svg{background:transparent!important}'
+    ].join('\n');
+  } else {
+    if (!selector) return;
+    cssText = `${selector}{background:transparent!important;background-color:transparent!important}`;
+  }
   __zap_addPreview(cssText);
   const payload = {
     action: kind,
@@ -216,6 +226,7 @@ function __zap_onKey(e) {
   const k = e.key;
   if (k === 'Escape') { e.preventDefault(); e.stopPropagation(); __zap_cancel(); }
   else if (k === 'Enter') { e.preventDefault(); e.stopPropagation(); __zap_commit(); }
+  else if (k === 'p' || k === 'P') { e.preventDefault(); e.stopPropagation(); __zap_auto('page'); }
   else if (k === 't' || k === 'T') { e.preventDefault(); e.stopPropagation(); __zap_auto('transparent'); }
   else if (k === 'h' || k === 'H') { e.preventDefault(); e.stopPropagation(); __zap_auto('hide'); }
   else if (k === 'z' || k === 'Z') { e.preventDefault(); e.stopPropagation(); __zap_undo(); }
@@ -228,6 +239,7 @@ function __zap_start() {
   if (!__zap_overlay) __zap_overlay = __zap_createOverlay();
   if (!__zap_hud) __zap_hud = __zap_createHUD();
   if (__zap_hud) __zap_hud.style.display = 'flex';
+  try { __zap_lastEl = document.documentElement || document.body || null; __zap_updateOverlayFor(__zap_lastEl); } catch (_) {}
   window.addEventListener('mousemove', __zap_onMouseMove, true);
   window.addEventListener('click', __zap_onClick, true);
   window.addEventListener('keydown', __zap_onKey, true);

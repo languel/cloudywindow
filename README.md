@@ -39,7 +39,7 @@ A transparent, borderless browser overlay built with Electron.
 - Per‑site CSS:
   - Developer → Site CSS → Edit In‑App… opens a JSON editor backed by `site-css.json` in your user data folder.
   - Click “Start Picker” then:
-    - 🫥 `T` transparent • 🙈 `H` hide • ↩️ `Z` undo • ♻️ `R` reset site rules (keeps built‑in starter rules) • ✅ `Enter` done • ✖️ `Esc` cancel
+    - 📄 `P` page/root transparent • 🫥 `T` transparent • 🙈 `H` hide • ↩️ `Z` undo • ♻️ `R` reset site rules (keeps built‑in starter rules) • ✅ `Enter` done • ✖️ `Esc` cancel
   - Save to persist. Rules apply on the next navigation for that site.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.

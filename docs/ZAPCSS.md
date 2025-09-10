@@ -80,7 +80,8 @@ Editor Window
 Picker UX (Phase 2 implemented)
 - Start from Developer menu or editor (button). Shortcut: `Cmd+Opt+P`.
 - HUD (icon‑only buttons with tooltips) and keys:
-  - 🫥 `T` Transparent: Add a transparent background rule and preview it.
+  - 📄 `P` Page/Root Transparent: Attempts to clear page background via a broad rule (`html, body, #root, #__next, #app, .app, .container, .content, .editor, .workspace, .main, .page` + `canvas, svg`).
+  - 🫥 `T` Transparent: Add a transparent background rule for the current element and preview it.
   - 🙈 `H` Hide: Add a hide rule and preview it.
   - ↩️ `Z` Undo: Undo the last auto‑zap (preview + stored rule).
   - ♻️ `R` Reset: Remove previews and all user rules for the current host (starter rules are preserved).
