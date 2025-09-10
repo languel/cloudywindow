@@ -79,13 +79,14 @@ Editor Window
 
 Picker UX (Phase 2 implemented)
 - Start from Developer menu or editor (button). Shortcut: `Cmd+Opt+P`.
-- HUD buttons and keys while picking:
-  - `T` Transparent: Immediately adds a rule to the store that clears background for the hovered selector and previews it.
-  - `H` Hide: Immediately adds a rule to hide the hovered element and previews it.
-  - `Z` Undo: Removes the last auto‑zap preview and deletes the last auto‑added rule (single level).
-  - `Enter` Done: Commits the current selector to the editor (inserts a template rule without saving).
-  - `Esc` Cancel: Cancels picking.
-- Overlay highlights the currently hovered element.
+- HUD (icon‑only buttons with tooltips) and keys:
+  - 🫥 `T` Transparent: Add a transparent background rule and preview it.
+  - 🙈 `H` Hide: Add a hide rule and preview it.
+  - ↩️ `Z` Undo: Undo the last auto‑zap (preview + stored rule).
+  - ♻️ `R` Reset: Remove previews and all user rules for the current host (starter rules are preserved).
+  - ✅ `Enter` Done: Send selector to the editor (insert template rule).
+  - ✖️ `Esc` Cancel: Exit picker.
+  - Overlay highlights the currently hovered element.
 
 ---
 

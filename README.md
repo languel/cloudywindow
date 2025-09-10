@@ -9,7 +9,7 @@ A transparent, borderless browser overlay built with Electron.
 - Open local HTML files (PDF optional; see Notes)
 - Links with `target=_blank` open in a new frameless CloudyWindow
 - Per‑site CSS rules with starter recipes (TLDraw, Excalidraw, Strudel, play.ertdfgcvb.xyz, Cables, Unit)
-- Built‑in Site CSS editor window + DOM/CSS picker with auto‑zap and undo
+- Built‑in Site CSS editor window + DOM/CSS picker with auto‑zap, undo, and site reset
 - Keyboard shortcuts for UI toggling, fullscreen, and more
 - Custom frameless resize handles (edges + corners)
 - Top drag region even when UI is hidden
@@ -38,7 +38,8 @@ A transparent, borderless browser overlay built with Electron.
 - Links that open in a new tab/window (`target=_blank`) are intercepted and opened as a new CloudyWindow with the same frameless, transparent style. New windows are managed in the Window menu.
 - Per‑site CSS:
   - Developer → Site CSS → Edit In‑App… opens a JSON editor backed by `site-css.json` in your user data folder.
-  - Click “Start Picker” to select an element in the focused CloudyWindow. Press `T` to auto‑zap (transparent), `H` to auto‑zap (hide), `Z` to undo last auto‑zap, `Enter` to commit a picked selector to the editor.
+  - Click “Start Picker” then:
+    - 🫥 `T` transparent • 🙈 `H` hide • ↩️ `Z` undo • ♻️ `R` reset site rules (keeps built‑in starter rules) • ✅ `Enter` done • ✖️ `Esc` cancel
   - Save to persist. Rules apply on the next navigation for that site.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.

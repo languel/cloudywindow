@@ -105,12 +105,13 @@ function __zap_createHUD() {
     b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { handler(); } catch(_){} });
     return b;
   };
-  const btnT = mkBtn('Transparent (T)', 'Auto‑zap: make background transparent', () => { __zap_auto('transparent'); });
-  const btnH = mkBtn('Hide (H)', 'Auto‑zap: hide element', () => { __zap_auto('hide'); });
-  const btnZ = mkBtn('Undo (Z)', 'Undo last auto‑zap preview', () => { __zap_undo(); });
-  const btnDone = mkBtn('Done (Enter)', 'Finish picking and send to editor', () => { __zap_commit(); });
-  const btnCancel = mkBtn('Cancel (Esc)', 'Cancel picker', () => { __zap_cancel(); });
-  box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnDone); box.appendChild(btnCancel);
+  const btnT = mkBtn('🫥', 'Transparent (T) — auto‑zap: make background transparent', () => { __zap_auto('transparent'); });
+  const btnH = mkBtn('🙈', 'Hide (H) — auto‑zap: hide element', () => { __zap_auto('hide'); });
+  const btnZ = mkBtn('↩️', 'Undo (Z) — undo last auto‑zap preview', () => { __zap_undo(); });
+  const btnR = mkBtn('♻️', 'Reset (R) — remove previews and user rules for this host', () => { __zap_reset(); });
+  const btnDone = mkBtn('✅', 'Done (Enter) — finish picking and send to editor', () => { __zap_commit(); });
+  const btnCancel = mkBtn('✖️', 'Cancel (Esc) — cancel picker', () => { __zap_cancel(); });
+  box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnR); box.appendChild(btnDone); box.appendChild(btnCancel);
   document.documentElement.appendChild(box);
   return box;
 }
@@ -218,6 +219,7 @@ function __zap_onKey(e) {
   else if (k === 't' || k === 'T') { e.preventDefault(); e.stopPropagation(); __zap_auto('transparent'); }
   else if (k === 'h' || k === 'H') { e.preventDefault(); e.stopPropagation(); __zap_auto('hide'); }
   else if (k === 'z' || k === 'Z') { e.preventDefault(); e.stopPropagation(); __zap_undo(); }
+  else if (k === 'r' || k === 'R') { e.preventDefault(); e.stopPropagation(); __zap_reset(); }
 }
 
 function __zap_start() {
@@ -239,6 +241,14 @@ function __zap_stop() {
   window.removeEventListener('keydown', __zap_onKey, true);
   if (__zap_overlay) __zap_overlay.style.display = 'none';
   if (__zap_hud) __zap_hud.style.display = 'none';
+}
+
+function __zap_reset() {
+  // Remove all previews
+  try { while (__zap_previewStack.length) { __zap_undoPreview(); } } catch (_) {}
+  // Ask host to clear stored user rules for this host
+  const host = (location && location.host) || '';
+  safeSend('zap-css-reset', { host });
 }
 
 // IPC from embedder

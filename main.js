@@ -1081,6 +1081,24 @@ ipcMain.handle('site-css:auto-undo', () => {
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
 
+ipcMain.handle('site-css:reset-host', (_e, host) => {
+  try {
+    if (!host) return { ok: false, error: 'no host' };
+    const rules = siteCssStore.list();
+    let count = 0;
+    for (const r of rules) {
+      const h = r && r.match && r.match.host ? String(r.match.host).toLowerCase() : '';
+      const isStarter = r && typeof r.id === 'string' && r.id.startsWith('starter-');
+      if (!isStarter && h === String(host).toLowerCase()) {
+        if (siteCssStore.remove(r.id)) count++;
+      }
+    }
+    return { ok: true, removed: count };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 // Open a URL in a brand new CloudyWindow instance
 ipcMain.handle('open-url-in-new-window', async (_event, url) => {
   try {

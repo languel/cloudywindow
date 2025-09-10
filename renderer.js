@@ -829,6 +829,13 @@ if (iframe) {
       } catch (_) {}
     } else if (event.channel === 'zap-css-undo') {
       try { if (window.electronAPI && typeof window.electronAPI.siteCssAutoUndo === 'function') window.electronAPI.siteCssAutoUndo(); } catch (_) {}
+    } else if (event.channel === 'zap-css-reset') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (payload && payload.host && window.electronAPI && typeof window.electronAPI.siteCssResetHost === 'function') {
+          window.electronAPI.siteCssResetHost(payload.host);
+        }
+      } catch (_) {}
     }
   });
 }
