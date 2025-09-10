@@ -17,7 +17,7 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - [ + ] Window background alpha control (0% / 1%)
 - [ + ] Site CSS injection (tldraw, Strudel transparency)
 - [ ~ ] Resize handles (frameless) - basic; polish later
-- [ ~ ] Multi‑window management
+- [ + ] Multi‑window management (menu + _blank popups)
 - [ + ] Packaging (electron‑builder)
 
 ---
@@ -25,10 +25,11 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 ## Architecture
 
 - BrowserWindow: `transparent:true`, `backgroundColor: #00000001` (1% alpha default), `hasShadow:false`
-- Web content: Electron `<webview id="content-frame">`
+- Web content: Electron `<webview id="content-frame" allowpopups>`
 - Guest preload: `webview-preload.js` forwards dragenter/over/leave/drop via `sendToHost`
 - Renderer: `renderer.js` handles navigation, DnD resolution, opacity controls, CSS injection, and optional hard flush
 - Main: menus, window management, and background alpha toggles
+  - Popup routing: `app.on('web-contents-created')` → `contents.setWindowOpenHandler` intercepts `window.open` / `target=_blank` from webviews and creates a new frameless CloudyWindow (then sends `navigate-to`)
 
 ---
 
@@ -65,9 +66,10 @@ Scope
 - Add `webview-preload.js` to forward drag events to host.
 - Port navigation/reload/URL bar to webview APIs.
 - Add CSS recipes for tldraw and Strudel transparency.
+- Intercept popups and open as managed CloudyWindows (no native chrome).
 
 Acceptance criteria
-- All navigation operates on webview; drops open content; CSS recipes make common tools transparent; no major regressions.
+- All navigation operates on webview; drops open content; CSS recipes make common tools transparent; links with `target=_blank` open in new CloudyWindows without native titlebar; new windows appear in Window menu; no major regressions.
 
 ---
 

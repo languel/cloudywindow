@@ -7,6 +7,7 @@ A transparent, borderless browser overlay built with Electron.
 - Basic browser navigation (back, forward, reload, URL bar)
 - Drag-and-drop file and URL support
 - Open local HTML files (PDF optional; see Notes)
+- Links with `target=_blank` open in a new frameless CloudyWindow
 - Keyboard shortcuts for UI toggling, fullscreen, and more
 - Custom frameless resize handles (edges + corners)
 - Top drag region even when UI is hidden
@@ -32,6 +33,7 @@ A transparent, borderless browser overlay built with Electron.
 - Use the navigation bar to enter URLs or open files.
 - Drag and drop files or URLs anywhere on the window to open them. A "Drop file or URL" overlay appears while dragging.
   - Note: Some cross‑origin pages can swallow drag events. If drop doesn't trigger, use the shortcuts below.
+- Links that open in a new tab/window (`target=_blank`) are intercepted and opened as a new CloudyWindow with the same frameless, transparent style. New windows are managed in the Window menu.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.
 - Keyboard shortcuts:
@@ -77,6 +79,7 @@ file://<path-to-repo>/default-minimal.html
 
 ## Notes
 - Webview is used for content: drag & drop and per‑site CSS injection are supported.
+- Popup handling: The webview has `allowpopups`, but the app intercepts all `window.open`/`_blank` requests and routes them to managed CloudyWindows (native titlebar is never shown).
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
 - Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
 

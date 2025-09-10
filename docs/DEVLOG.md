@@ -23,6 +23,12 @@ This document tracks notable issues, decisions, and fixes while developing the w
     - Optional toggles: Pre‑Draw Hard Flush; Canvas Safe Mode (disable Accelerated2dCanvas)
   - Result: No ghosting in default mode, minimal flashing; alpha 0% is supported with short debounced flushes
 
+- Popup/link handling (target=_blank / window.open)
+  - Problem: Links with `target="_blank"` either did nothing or opened with native window chrome.
+  - Change: Enabled `<webview allowpopups>` and added a main‑process `setWindowOpenHandler` for webview contents.
+  - Behavior: We deny the default popup and instead create a new frameless CloudyWindow via `createWindow()`, then send a `navigate-to` IPC so the new window’s webview loads the URL.
+  - Notes: `about:blank` popups are ignored; windows are tracked in our `windows` set and appear in the Window menu. No native titlebar/decoration.
+
 - Shortcuts (current)
   - Toggle UI: Cmd+Opt+U
   - Background opacity presets: Opt+Shift+0/5/1; step: Opt+Shift+[ / ]
@@ -31,7 +37,7 @@ This document tracks notable issues, decisions, and fixes while developing the w
   - Hard Flush Content: Cmd+Opt+F; Pre‑Draw Hard Flush (toggle); Canvas Safe Mode (toggle)
 
 - Security notes
-  - Removed `allowpopups` from `<webview>` in dev to prevent warnings.
+  - `<webview allowpopups>` is enabled, but all popups are intercepted in main and default behavior is denied (`action:'deny'`). We route allowed URLs into managed CloudyWindows only.
   - Host remains `contextIsolation:true`, `nodeIntegration:false`.
 
 ## TODO / Ideas
