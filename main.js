@@ -1066,6 +1066,7 @@ ipcMain.handle('site-css:auto-add', (_e, payload) => {
     if (!host || css.length === 0) return { ok: false, error: 'invalid payload' };
     const rule = siteCssStore.add({ enabled: true, match: { host }, css, notes: payload.selector ? `Auto: ${payload.selector}` : 'Auto zap' });
     lastAutoZap = { id: rule.id, host };
+    try { if (siteCssEditorWindow) siteCssEditorWindow.webContents.send('site-css:auto-added', { id: rule.id, host, cssText: css[0] }); } catch (_) {}
     return { ok: true, id: rule.id };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };

@@ -39,7 +39,7 @@ let __zap_previewStack = [];
 function __zap_createOverlay() {
   const d = document.createElement('div');
   d.style.position = 'fixed';
-  d.style.zIndex = '2147483646';
+  d.style.zIndex = '21474836470';
   d.style.border = '2px solid rgba(0,200,255,0.9)';
   d.style.background = 'rgba(0,200,255,0.12)';
   d.style.pointerEvents = 'none';
@@ -81,7 +81,7 @@ function __zap_undoPreview() {
 function __zap_createHUD() {
   const box = document.createElement('div');
   box.style.position = 'fixed';
-  box.style.zIndex = '2147483647';
+  box.style.zIndex = '21474836471';
   box.style.top = '8px';
   box.style.right = '8px';
   box.style.background = 'rgba(0,0,0,0.7)';

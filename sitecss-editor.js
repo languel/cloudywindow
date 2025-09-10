@@ -56,6 +56,24 @@
     if (!Array.isArray(obj.rules)) obj.rules = [];
   }
 
+  function highlightRuleById(id) {
+    try {
+      const text = editor.value;
+      const needle = `"id": "${id}`;
+      const idx = text.indexOf(needle);
+      if (idx >= 0) {
+        editor.focus();
+        editor.selectionStart = idx;
+        editor.selectionEnd = Math.min(text.length, idx + needle.length + 20);
+        // Scroll so selection is visible
+        const before = text.slice(0, idx);
+        const lines = before.split(/\n/).length;
+        editor.scrollTop = Math.max(0, (lines - 3) * 16);
+        setStatus('Jumped to rule');
+      }
+    } catch (_) {}
+  }
+
   function addRuleFromPick(payload) {
     try {
       const raw = editor.value;
@@ -81,6 +99,7 @@
       data.rules.push(rule);
       editor.value = JSON.stringify(data, null, 2);
       setStatus(`Inserted rule for ${host || 'site'} — review and Save`);
+      highlightRuleById(rule.id);
     } catch (e) {
       setStatus('Insert error: ' + (e && e.message || e));
     }
@@ -97,6 +116,16 @@
   if (window.electronAPI && window.electronAPI.onSiteCssPickerResult) {
     window.electronAPI.onSiteCssPickerResult((_e, payload) => {
       addRuleFromPick(payload || {});
+    });
+  }
+
+  // Highlight after auto-added rules (T/H/P)
+  if (window.electronAPI && window.electronAPI.onSiteCssAutoAdded) {
+    window.electronAPI.onSiteCssAutoAdded(async (_e, payload) => {
+      try {
+        await loadFile();
+        if (payload && payload.id) highlightRuleById(payload.id);
+      } catch (_) {}
     });
   }
 })();

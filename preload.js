@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     siteCssAutoUndo: () => ipcRenderer.invoke('site-css:auto-undo'),
     siteCssResetHost: (host) => ipcRenderer.invoke('site-css:reset-host', host),
     onSiteCssPickerResult: (callback) => ipcRenderer.on('site-css:picker-result', callback),
+    onSiteCssAutoAdded: (callback) => ipcRenderer.on('site-css:auto-added', callback),
     // Provide absolute path to webview preload script
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
 });
