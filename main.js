@@ -794,6 +794,27 @@ app.whenReady().then(async () => {
 
   createWindow();
 
+  // Ensure any window.open / target=_blank from webviews opens as a CloudyWindow
+  app.on('web-contents-created', (_event, contents) => {
+    try {
+      if (contents && contents.getType && contents.getType() === 'webview') {
+        contents.setWindowOpenHandler((details) => {
+          const url = details && details.url ? details.url : '';
+          if (url && url !== 'about:blank') {
+            try {
+              const win = createWindow();
+              win.webContents.once('did-finish-load', () => {
+                try { win.webContents.send('navigate-to', url); } catch (_) {}
+              });
+            } catch (_) {}
+          }
+          // Always deny default popup; we handle it ourselves
+          return { action: 'deny' };
+        });
+      }
+    } catch (_) {}
+  });
+
   app.on('activate', () => {
     if (windows.size === 0) {
       createWindow();
@@ -876,6 +897,20 @@ ipcMain.handle('open-folder-dialog', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const p = result.filePaths[0];
   return p;
+});
+
+// Open a URL in a brand new CloudyWindow instance
+ipcMain.handle('open-url-in-new-window', async (_event, url) => {
+  try {
+    const win = createWindow();
+    // After index.html loads, ask the renderer to navigate the webview
+    win.webContents.once('did-finish-load', () => {
+      try { win.webContents.send('navigate-to', url); } catch (_) {}
+    });
+    return true;
+  } catch (e) {
+    return false;
+  }
 });
 
 // (Removed) legacy navigate/load-url IPC were unused in current renderer

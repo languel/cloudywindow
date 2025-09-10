@@ -73,16 +73,16 @@
       }
 
       function computeLayout() {
-        cloud.w = min(width, height) * 0.58;
+        cloud.w = min(width, height) * 0.1;
         cloud.h = cloud.w * 0.62;
-        cloud.cx = width * 0.5;
-        cloud.cy = height * 0.5;
+        cloud.cx = width * 1.0- cloud.w * 0.5;
+        cloud.cy = height * 1.0 - cloud.h * 0.5;
       }
 
       function makePuffs() {
         // Deterministic but not symmetric cloud puffs (cute, hand-drawn feel)
-        randomSeed(77);
-        noiseSeed(137);
+        randomSeed(7);
+        noiseSeed(17);
         puffs = [];
 
         const add = (ox, oy, sx, sy, a) => {
@@ -97,17 +97,17 @@
           const oy = -0.2 + (noise(3.1 * t + 10) - 0.5) * 0.10;
           const sx = 0.50 + (noise(2.3 * t + 20) - 0.5) * 0.20;
           const sy = 0.54 + (noise(2.0 * t + 30) - 0.5) * 0.18;
-          const a  = 210 + noise(2.5 * t + 40) * 40;
+          const a  = 150 + noise(2.5 * t + 40) * 40;
           add(ox, oy, sx, sy, a);
         }
         // Left side scallops (different count/shape than right)
-        const leftCount = 4;
+        const leftCount = 3;
         for (let i = 0; i < leftCount; i++) {
           const ox = -0.2 - i * 0.05 + random(-0.02, 0.02);
           const oy = -0.1 + random(-0.03, 0.12);
           const sx = random(0.30, 0.44);
           const sy = random(0.34, 0.50);
-          const a  = random(180, 230);
+          const a  = random(80, 120);
           add(ox, oy, sx, sy, a);
         }
         // Right side scallops (slightly more/denser)
@@ -117,18 +117,18 @@
           const oy = -0.3+ random(-0.01, 0.14);
           const sx = random(0.28, 0.42);
           const sy = random(0.34, 0.48);
-          const a  = random(170, 220);
+          const a  = random(70, 120);
           add(ox, oy, sx, sy, a);
         }
         // Bottom scallops (non-symmetric)
-        const bottomCount = 3;
+        const bottomCount = 2;
         for (let i = 0; i < bottomCount; i++) {
           const t = i / (bottomCount - 1);
           const ox = map(t, 0, 1, -0.20, 0.22) + (noise(5.0 * t + 50) - 0.5) * 0.05;
           const oy = random(0.12, 0.22);
           const sx = random(0.36, 0.52);
           const sy = random(0.36, 0.52);
-          const a  = random(150, 205);
+          const a  = random(50, 105);
           add(ox, oy, sx, sy, a);
         }
       }
@@ -217,7 +217,7 @@
         // Soft main belly with gentle wobble
         const wb = 0.82 * (1 + (noise(999 + t) - 0.5) * 0.04);
         const hb = 0.76 * (1 + (noise(555 + t) - 0.5) * 0.04);
-        fill(0, 0, 100, 240);
+        fill(0, 0, 100, 230);
         ellipse(x, y + h * 0.02, w * wb, h * hb);
 
         // Puffy parts with per-puff wobble

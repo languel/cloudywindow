@@ -5,7 +5,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setWindowSize: (width, height) => ipcRenderer.invoke('set-window-size', width, height),
     getWindowBounds: () => ipcRenderer.invoke('get-window-bounds'),
     setWindowBounds: (bounds) => ipcRenderer.invoke('set-window-bounds', bounds),
-    // Navigation IPC removed (unused)
+    // Legacy/utility navigation events
+    onNavigateTo: (callback) => ipcRenderer.on('navigate-to', callback),
     openFile: () => ipcRenderer.send('open-file'),
     onFileSelected: (callback) => ipcRenderer.on('selected-file', callback),
     onOpenFileShortcut: (callback) => ipcRenderer.on('open-file-shortcut', callback),
@@ -42,6 +43,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
     openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
+    // Open a URL in a brand new CloudyWindow
+    openUrlInNewWindow: (url) => ipcRenderer.invoke('open-url-in-new-window', url),
     // Provide absolute path to webview preload script
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
 });
