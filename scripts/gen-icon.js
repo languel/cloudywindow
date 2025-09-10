@@ -5,8 +5,32 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+// Load .env (best-effort) so CLOUDYW_* vars work without manual export
+(function loadDotEnv() {
+  try {
+    const envPath = path.resolve(__dirname, '..', '.env');
+    if (fs.existsSync(envPath)) {
+      const raw = fs.readFileSync(envPath, 'utf8');
+      for (const line of raw.split(/\r?\n/)) {
+        if (!line || line.trim().startsWith('#')) continue;
+        const eq = line.indexOf('=');
+        if (eq === -1) continue;
+        const key = line.slice(0, eq).trim();
+        const val = line.slice(eq + 1);
+        if (key && !(key in process.env)) process.env[key] = val;
+      }
+    }
+  } catch {}
+})();
+
 const EMOJI = process.env.CLOUDYW_EMOJI || '🌦️';
 const ICON_STYLE = (process.env.CLOUDYW_ICON_STYLE || 'transparent').toLowerCase();
+// Vertical bias for emoji placement (fraction of canvas height; positive moves down)
+const ICON_Y_BIAS = (() => {
+  const v = Number(process.env.CLOUDYW_ICON_Y_BIAS);
+  if (Number.isFinite(v)) return Math.max(-0.5, Math.min(0.5, v));
+  return 0.28; // default ~28% downward to visually center weather emoji
+})();
 const OUT_DIR = process.env.CLOUDYW_ICON_OUT
   ? path.resolve(process.env.CLOUDYW_ICON_OUT)
   : path.resolve(__dirname, '..', 'build');
@@ -42,29 +66,37 @@ function main() {
 
   let bg = '';
   if (ICON_STYLE === 'glass') {
-    bg = `\n  <defs>\n    <linearGradient id=\"glass\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\">\n      <stop offset=\"0%\" stop-color=\"#FFFFFF\" stop-opacity=\"0.18\"/>\n      <stop offset=\"100%\" stop-color=\"#FFFFFF\" stop-opacity=\"0.06\"/>\n    </linearGradient>\n  </defs>\n  <rect x=\"96\" y=\"96\" width=\"832\" height=\"832\" rx=\"192\" fill=\"url(#glass)\"/>`;
+    bg = `
+      <defs>
+        <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+          <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.06"/>
+        </linearGradient>
+      </defs>
+      <rect x="96" y="96" width="832" height="832" rx="192" fill="url(#glass)"/>
+    `;
   }
-  const svgContent = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\\n` +
-    `<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1024\" height=\"1024\" viewBox=\"0 0 1024 1024\">\\n` +
-    `  <rect width=\"1024\" height=\"1024\" fill=\"none\"/>${bg}\\n` +
-    `  <text x=\"512\" y=\"512\" text-anchor=\"middle\" dominant-baseline=\"central\"` +
-    `        font-family=\"Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, system-ui, sans-serif\"` +
-    `        font-size=\"820\">${EMOJI}</text>\\n` +
-    `</svg>`;
+  const yShift = Math.round(1024 * ICON_Y_BIAS);
+  const svgContent =
+    `<?xml version="1.0" encoding="UTF-8"?>\n` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">\n` +
+    `  <rect width="1024" height="1024" fill="none"/>${bg}\n` +
+    `  <g transform="translate(512,${512 + yShift})">\n` +
+    `    <text x="0" y="0" text-anchor="middle" dominant-baseline="central"\n` +
+    `          font-family="Apple Color Emoji, Segoe UI Emoji, Noto Color Emoji, system-ui, sans-serif"\n` +
+    `          font-size="820">${EMOJI}</text>\n` +
+    `  </g>\n` +
+    `</svg>\n`;
   fs.writeFileSync(svg, svgContent, 'utf8');
 
-  // Rasterize SVG to 1024 PNG via Quick Look
-  let ok = sh('qlmanage', ['-t', '-s', '1024', '-o', tmp, svg]);
-  // Fallback: use sips to convert SVG -> PNG if Quick Look fails
-  if (!ok || !fs.existsSync(svgOut)) {
-    const pngFallback = path.join(tmp, 'emoji.png');
-    const okSips = sh('sips', ['-s', 'format', 'png', '-z', '1024', '1024', svg, '--out', pngFallback]);
-    if (!okSips || !fs.existsSync(pngFallback)) {
-      console.warn('Rasterization failed; skipping icon generation');
-      return 0;
-    }
-    try { fs.copyFileSync(pngFallback, svgOut); } catch {}
+  // Rasterize SVG to 1024 PNG via sips (sips-only path; skip Quick Look)
+  const pngFallback = path.join(tmp, 'emoji.png');
+  const okSips = sh('sips', ['-s', 'format', 'png', '-z', '1024', '1024', svg, '--out', pngFallback]);
+  if (!okSips || !fs.existsSync(pngFallback)) {
+    console.warn('Rasterization failed; skipping icon generation');
+    return 1;
   }
+  try { fs.copyFileSync(pngFallback, svgOut); } catch {}
 
   // Validate PNG header (\x89PNG\r\n\x1A\n)
   try {
@@ -73,11 +105,11 @@ function main() {
     const expected = Buffer.from([0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A]).toString('binary');
     if (sig !== expected) {
       console.warn('Rasterized file is not a valid PNG; skipping icon generation');
-      return 0;
+      return 1;
     }
   } catch (e) {
     console.warn('Cannot read rasterized PNG; skipping icon generation');
-    return 0;
+    return 1;
   }
 
   const sizes = [
@@ -134,7 +166,11 @@ function main() {
     }
   }
 
-  sh('iconutil', ['-c', 'icns', ICONSET, '-o', ICNS]);
+  const okIcns = sh('iconutil', ['-c', 'icns', ICONSET, '-o', ICNS]);
+  if (!okIcns) {
+    console.warn('iconutil failed creating icns at', ICNS);
+    return 1;
+  }
   console.log('Icon(s) generated at', ICONSET, 'and', ICNS);
   return 0;
 }

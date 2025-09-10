@@ -281,11 +281,15 @@ window.electronAPI.onPreDrawFlushToggle && window.electronAPI.onPreDrawFlushTogg
 // Event Listeners
 goButton.addEventListener('click', () => {
     navigateToUrl(urlInput.value);
+    // Auto-hide UI after navigating via Go button
+    try { if (uiContainer && uiContainer.style.visibility !== 'hidden') toggleUI(); } catch (_) {}
 });
 
 urlInput.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
         navigateToUrl(urlInput.value);
+        // Auto-hide UI after pressing Enter in URL bar
+        try { if (uiContainer && uiContainer.style.visibility !== 'hidden') toggleUI(); } catch (_) {}
     }
 });
 
@@ -430,6 +434,8 @@ window.electronAPI.onReloadContent(() => {
 window.electronAPI.onGoToUrl(() => {
   // Navigate to the URL in the input field even if UI is hidden
   navigateToUrl(urlInput.value);
+  // Auto-hide UI once navigation is triggered from the shortcut
+  try { if (uiContainer && uiContainer.style.visibility !== 'hidden') toggleUI(); } catch (_) {}
 });
 
 // Add event listeners for the opacity control shortcuts

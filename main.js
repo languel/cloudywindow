@@ -1,10 +1,13 @@
-const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu, session, systemPreferences } = require('electron');
 const fs = require('fs');
 const path = require('path');
 
 let windows = new Set(); // Track all windows
 let mainWindow; // The initial window
 let appIcon = null; // Generated emoji icon
+
+// Allow autoplay without gesture (audio in webviews)
+try { app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required'); } catch {}
 
 async function generateEmojiIcon(emoji = '🌦️', size = 256) {
   // Create an offscreen window to render the emoji and capture as an image
@@ -231,7 +234,7 @@ function positionWindowInQuadrant(win, quadrant) {
       });
       break;
     case 'overscan-center-110': {
-      // Centered at ~110% of work area to push site UI offscreen
+      // Centered at ~130% of work area to push site UI offscreen
       const w = Math.floor(workArea.width * 1.3);
       const h = Math.floor(workArea.height * 1);
       win.setBounds({
@@ -751,6 +754,37 @@ function updateWindowMenu() {
 }
 
 app.whenReady().then(async () => {
+  // Proactively request macOS mic/camera access (no-op on other platforms)
+  try {
+    if (process.platform === 'darwin') {
+      try { await systemPreferences.askForMediaAccess('microphone'); } catch {}
+      try { await systemPreferences.askForMediaAccess('camera'); } catch {}
+    }
+  } catch {}
+
+  // Auto‑grant common permissions for content inside the webview
+  try {
+    const ses = session.defaultSession;
+    ses.setPermissionRequestHandler((_wc, permission, callback, _details) => {
+      const allow = [
+        'media',           // legacy combined media
+        'audioCapture',    // microphone
+        'videoCapture',    // camera
+        'displayCapture',  // screen share
+        'midi',
+        'midiSysex'
+      ].includes(permission);
+      callback(allow);
+    });
+    if (ses.setPermissionCheckHandler) {
+      ses.setPermissionCheckHandler((_wc, permission, _origin, _details) => {
+        return [
+          'media', 'audioCapture', 'videoCapture', 'displayCapture', 'midi', 'midiSysex'
+        ].includes(permission);
+      });
+    }
+  } catch {}
+
   // Generate emoji icon before creating any windows
   try {
     appIcon = await generateEmojiIcon('🌦️', 256);
