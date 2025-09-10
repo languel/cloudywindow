@@ -1,6 +1,33 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu, session, systemPreferences } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const siteCssStore = require('./main/siteCssStore');
+
+let siteCssEditorWindow = null; // dedicated editor window
+let lastContentWin = null; // last focused CloudyWindow (content)
+
+function openSiteCssEditorWindow() {
+  if (siteCssEditorWindow && !siteCssEditorWindow.isDestroyed()) {
+    siteCssEditorWindow.focus();
+    return siteCssEditorWindow;
+  }
+  siteCssEditorWindow = new BrowserWindow({
+    width: 800,
+    height: 640,
+    title: 'CloudyWindow — Site CSS',
+    backgroundColor: '#1e1e1e',
+    frame: true,
+    transparent: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    }
+  });
+  siteCssEditorWindow.on('closed', () => { siteCssEditorWindow = null; });
+  siteCssEditorWindow.loadFile('sitecss-editor.html');
+  return siteCssEditorWindow;
+}
 
 let windows = new Set(); // Track all windows
 let mainWindow; // The initial window
@@ -76,6 +103,7 @@ function createWindow() {
 
   newWindow.on('focus', () => {
     // Rebuild menu so checkboxes reflect this window's state
+    lastContentWin = newWindow;
     updateWindowMenu();
   });
 
@@ -243,6 +271,22 @@ function positionWindowInQuadrant(win, quadrant) {
 function createMenu() {
   const isMac = process.platform === 'darwin';
   const focusedWin = BrowserWindow.getFocusedWindow();
+  const openSiteCssEditorWindow = () => {
+    const win = new BrowserWindow({
+      width: 800,
+      height: 640,
+      title: 'CloudyWindow — Site CSS',
+      backgroundColor: '#1e1e1e',
+      frame: true,
+      transparent: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    });
+    win.loadFile('sitecss-editor.html');
+  };
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{
@@ -503,6 +547,18 @@ function createMenu() {
           label: 'Developer',
           submenu: [
             {
+              label: 'Start DOM/CSS Picker (This Window)',
+              accelerator: 'CmdOrCtrl+Alt+P',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                const target = (win && siteCssEditorWindow && win.id === siteCssEditorWindow.id)
+                  ? (lastContentWin || mainWindow || BrowserWindow.getAllWindows().find(w => w !== siteCssEditorWindow))
+                  : win;
+                if (target) target.webContents.send('zap-css-start');
+              }
+            },
+            { type: 'separator' },
+            {
               label: 'Apply Transparency CSS',
               accelerator: 'CmdOrCtrl+Alt+T',
               click: () => {
@@ -517,6 +573,31 @@ function createMenu() {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('hard-flush');
               }
+            },
+            { type: 'separator' },
+            {
+              label: 'Site CSS',
+              submenu: [
+                {
+                  label: 'Edit In-App…',
+                  click: () => { openSiteCssEditorWindow(); }
+                },
+                {
+                  label: 'Open Externally…',
+                  click: async () => {
+                    try {
+                      try { siteCssStore.reload(); } catch (_) {}
+                      const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+                      const { shell } = require('electron');
+                      await shell.openPath(p);
+                    } catch (_) {}
+                  }
+                },
+                {
+                  label: 'Reload Rules',
+                  click: () => { try { siteCssStore.reload(); } catch (_) {} }
+                }
+              ]
             },
             { type: 'separator' },
             {
@@ -897,6 +978,107 @@ ipcMain.handle('open-folder-dialog', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const p = result.filePaths[0];
   return p;
+});
+
+// Site CSS IPC handlers
+ipcMain.handle('site-css:start-picker', () => {
+  try {
+    const win = lastContentWin || mainWindow || (Array.from(windows)[0] || null);
+    if (!win) return false;
+    win.webContents.send('zap-css-start');
+    return true;
+  } catch (_) { return false; }
+});
+ipcMain.handle('site-css:stop-picker', () => {
+  try {
+    const win = lastContentWin || mainWindow || (Array.from(windows)[0] || null);
+    if (!win) return false;
+    win.webContents.send('zap-css-stop');
+    return true;
+  } catch (_) { return false; }
+});
+ipcMain.on('site-css:picker-result', (_e, payload) => {
+  try {
+    const ed = siteCssEditorWindow || openSiteCssEditorWindow();
+    if (!ed) return;
+    if (ed.webContents.isLoading()) {
+      ed.webContents.once('did-finish-load', () => {
+        try { ed.webContents.send('site-css:picker-result', payload); ed.focus(); } catch (_) {}
+      });
+    } else {
+      ed.webContents.send('site-css:picker-result', payload);
+      ed.focus();
+    }
+  } catch (_) {}
+});
+ipcMain.handle('site-css:read', () => {
+  try {
+    siteCssStore.ensureLoaded && siteCssStore.ensureLoaded();
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    if (!fs.existsSync(p)) return JSON.stringify({ version: 1, rules: [] }, null, 2);
+    return fs.readFileSync(p, 'utf8');
+  } catch (_) {
+    return JSON.stringify({ version: 1, rules: [] }, null, 2);
+  }
+});
+ipcMain.handle('site-css:write', (_e, raw) => {
+  try {
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    let parsed;
+    try { parsed = JSON.parse(String(raw)); } catch (err) { return { ok: false, error: String(err && err.message || err) }; }
+    const pretty = JSON.stringify(parsed, null, 2);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, pretty, 'utf8');
+    try { siteCssStore.reload(); } catch (_) {}
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
+});
+ipcMain.handle('site-css:get-matching', (_event, url) => {
+  try { return siteCssStore.getMatching(url); } catch (_) { return []; }
+});
+ipcMain.handle('site-css:add', (_event, rule) => {
+  try { return siteCssStore.add(rule); } catch (_) { return null; }
+});
+ipcMain.handle('site-css:list', () => {
+  try { return siteCssStore.list(); } catch (_) { return []; }
+});
+ipcMain.handle('site-css:reload', () => {
+  try { siteCssStore.reload(); return true; } catch (_) { return false; }
+});
+ipcMain.handle('site-css:open-file', async () => {
+  try {
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    const { shell } = require('electron');
+    await shell.openPath(p);
+    return p;
+  } catch (_) {
+    return null;
+  }
+});
+
+let lastAutoZap = null;
+ipcMain.handle('site-css:auto-add', (_e, payload) => {
+  try {
+    const host = payload && payload.host ? String(payload.host) : '';
+    const css = payload && payload.cssText ? [String(payload.cssText)] : [];
+    if (!host || css.length === 0) return { ok: false, error: 'invalid payload' };
+    const rule = siteCssStore.add({ enabled: true, match: { host }, css, notes: payload.selector ? `Auto: ${payload.selector}` : 'Auto zap' });
+    lastAutoZap = { id: rule.id, host };
+    return { ok: true, id: rule.id };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+ipcMain.handle('site-css:auto-undo', () => {
+  try {
+    if (!lastAutoZap || !lastAutoZap.id) return { ok: false, error: 'nothing to undo' };
+    const removed = siteCssStore.remove(lastAutoZap.id);
+    const ok = !!removed;
+    lastAutoZap = null;
+    return { ok };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
 
 // Open a URL in a brand new CloudyWindow instance

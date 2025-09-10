@@ -12,6 +12,14 @@ const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
 const contentRoot = document.getElementById('content-root');
+// Site CSS editor overlay elements
+const siteCssOverlay = document.getElementById('sitecss-overlay');
+const siteCssEditor = document.getElementById('sitecss-editor');
+const siteCssStatus = document.getElementById('sitecss-status');
+const btnSiteCssSave = document.getElementById('sitecss-save');
+const btnSiteCssClose = document.getElementById('sitecss-close');
+const btnSiteCssFormat = document.getElementById('sitecss-format');
+const btnSiteCssReload = document.getElementById('sitecss-reload');
 // Pre‑draw flush toggle (persisted)
 let preDrawFlushEnabled = false;
 try { preDrawFlushEnabled = localStorage.getItem('preDrawFlushEnabled') === '1'; } catch (_) {}
@@ -164,6 +172,64 @@ function toggleUI() {
   }
   // Hard flush to prevent afterimages
   hardFlushWebview();
+}
+
+// ---------- Site CSS Editor Overlay ----------
+async function openSiteCssEditor() {
+  try {
+    if (!siteCssOverlay) return;
+    let text = '';
+    try { text = await window.electronAPI.siteCssRead(); } catch (_) {}
+    if (typeof text !== 'string') text = '';
+    siteCssEditor.value = text;
+    siteCssStatus.textContent = 'Loaded';
+    siteCssOverlay.classList.add('active');
+  } catch (_) {}
+}
+
+async function saveSiteCssEditor() {
+  try {
+    if (!siteCssOverlay) return;
+    const raw = siteCssEditor.value;
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (err) { siteCssStatus.textContent = 'Invalid JSON: ' + (err && err.message || err); return; }
+    const pretty = JSON.stringify(parsed, null, 2);
+    const res = await window.electronAPI.siteCssWrite(pretty);
+    if (res && res.ok) {
+      siteCssStatus.textContent = 'Saved';
+      try { await window.electronAPI.siteCssReload(); } catch (_) {}
+    } else {
+      siteCssStatus.textContent = 'Save failed: ' + (res && res.error ? res.error : 'unknown error');
+    }
+  } catch (e) {
+    siteCssStatus.textContent = 'Error: ' + (e && e.message || e);
+  }
+}
+
+function closeSiteCssEditor() {
+  if (!siteCssOverlay) return;
+  siteCssOverlay.classList.remove('active');
+}
+
+function formatSiteCssEditor() {
+  try {
+    const raw = siteCssEditor.value;
+    const parsed = JSON.parse(raw);
+    siteCssEditor.value = JSON.stringify(parsed, null, 2);
+    siteCssStatus.textContent = 'Formatted';
+  } catch (e) {
+    siteCssStatus.textContent = 'Format error: ' + (e && e.message || e);
+  }
+}
+
+async function reloadSiteCssEditor() {
+  try {
+    const text = await window.electronAPI.siteCssRead();
+    siteCssEditor.value = typeof text === 'string' ? text : '';
+    siteCssStatus.textContent = 'Reloaded';
+  } catch (e) {
+    siteCssStatus.textContent = 'Reload error: ' + (e && e.message || e);
+  }
 }
 
 function setupResizeHandlers() {
@@ -334,6 +400,12 @@ toggleUiButton.addEventListener('click', () => {
     toggleUI();
 });
 
+// Overlay buttons
+if (btnSiteCssSave) btnSiteCssSave.addEventListener('click', saveSiteCssEditor);
+if (btnSiteCssClose) btnSiteCssClose.addEventListener('click', closeSiteCssEditor);
+if (btnSiteCssFormat) btnSiteCssFormat.addEventListener('click', formatSiteCssEditor);
+if (btnSiteCssReload) btnSiteCssReload.addEventListener('click', reloadSiteCssEditor);
+
 // Global drag handling (document and iframe) with overlay above the iframe
 ['dragenter','dragover'].forEach(type => {
   document.addEventListener(type, (event) => {
@@ -494,6 +566,19 @@ window.electronAPI.onWindowBgAlpha && window.electronAPI.onWindowBgAlpha((_e, a)
   flushOnOpacityChange = (Number(a) === 0);
 });
 
+// Open Site CSS editor on command from menu
+window.electronAPI.onOpenSiteCssEditor && window.electronAPI.onOpenSiteCssEditor(() => {
+  openSiteCssEditor();
+});
+
+// Relay picker start/stop from main to the webview
+window.electronAPI.onZapCssStart && window.electronAPI.onZapCssStart(() => {
+  try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-start'); } catch (_) {}
+});
+window.electronAPI.onZapCssStop && window.electronAPI.onZapCssStop(() => {
+  try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-stop'); } catch (_) {}
+});
+
 let flushTimer = null;
 function scheduleFlush(delay = 100) {
   if (!flushOnOpacityChange) return; // skip if near‑transparent alpha is active
@@ -631,6 +716,23 @@ function injectGenericTransparency() {
   try { iframe.insertCSS(css); } catch (_) {}
 }
 
+// User-defined per-site CSS from the central store (M1)
+let lastUserCssSig = '';
+async function applyUserSiteCSS(currentUrl) {
+  try {
+    if (!iframe || typeof iframe.insertCSS !== 'function') return;
+    if (!window.electronAPI || typeof window.electronAPI.siteCssGetMatching !== 'function') return;
+    const cssList = await window.electronAPI.siteCssGetMatching(currentUrl || '');
+    if (!cssList || cssList.length === 0) { lastUserCssSig = ''; return; }
+    const sig = (currentUrl || '') + '::' + cssList.join('||');
+    if (sig === lastUserCssSig) return; // avoid re-inserting identical CSS
+    lastUserCssSig = sig;
+    for (const css of cssList) {
+      try { if (css && typeof css === 'string' && css.trim()) { iframe.insertCSS(css); } } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 if (iframe) {
   iframe.addEventListener('dom-ready', () => {
     let currentUrl = '';
@@ -641,6 +743,7 @@ if (iframe) {
       if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
     } catch (_) {}
     injectSiteCSS(currentUrl || '');
+    applyUserSiteCSS(currentUrl || '');
     // Show after content is ready if we hid before navigation
     if (iframe.dataset.preflush === '1') {
       requestAnimationFrame(() => {
@@ -658,11 +761,11 @@ if (iframe) {
     // Update URL bar with current location
     try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
     // Reapply site CSS on full navigations
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
   // Reapply site CSS on in-page navigations (SPA route changes)
   iframe.addEventListener('did-navigate-in-page', (_e) => {
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
 
 
@@ -708,6 +811,24 @@ if (iframe) {
           });
         }
       }
+    } else if (event.channel === 'zap-css-picked') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (payload && window.electronAPI && typeof window.electronAPI.siteCssPickerResult === 'function') {
+          window.electronAPI.siteCssPickerResult(payload);
+        }
+      } catch (_) {}
+    } else if (event.channel === 'zap-css-cancelled') {
+      // no-op
+    } else if (event.channel === 'zap-css-auto') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (window.electronAPI && typeof window.electronAPI.siteCssAutoAdd === 'function') {
+          window.electronAPI.siteCssAutoAdd(payload);
+        }
+      } catch (_) {}
+    } else if (event.channel === 'zap-css-undo') {
+      try { if (window.electronAPI && typeof window.electronAPI.siteCssAutoUndo === 'function') window.electronAPI.siteCssAutoUndo(); } catch (_) {}
     }
   });
 }

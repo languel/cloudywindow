@@ -176,3 +176,70 @@ body {
 #frame-flash.active {
     opacity: 1;
 }
+
+/* Site CSS editor overlay */
+#sitecss-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 3000; /* above everything */
+    display: none;
+    background: rgba(20,20,20,0.92);
+    color: #fff;
+    -webkit-app-region: no-drag;
+}
+#sitecss-overlay.active { display: block; }
+#sitecss-overlay .sitecss-toolbar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    background: rgba(0,0,0,0.35);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+#sitecss-overlay .sitecss-toolbar .title {
+    font-size: 13px;
+    color: rgba(255,255,255,0.85);
+}
+#sitecss-overlay .sitecss-toolbar .spacer { flex: 1; }
+#sitecss-overlay .sitecss-toolbar button {
+    background: rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.9);
+    border: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#sitecss-overlay .sitecss-toolbar button:hover {
+    background: rgba(255,255,255,0.14);
+}
+#sitecss-editor {
+    position: absolute;
+    top: 36px; left: 0; right: 0; bottom: 28px;
+    width: 100%;
+    height: calc(100% - 64px);
+    resize: none;
+    border: none;
+    outline: none;
+    padding: 12px;
+    box-sizing: border-box;
+    background: rgba(0,0,0,0.5);
+    color: #e8e8e8;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    font-size: 12px;
+    line-height: 1.5;
+}
+#sitecss-status {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    color: rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.35);
+    border-top: 1px solid rgba(255,255,255,0.12);
+    font-size: 12px;
+}

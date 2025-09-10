@@ -40,6 +40,17 @@ This document tracks notable issues, decisions, and fixes while developing the w
   - `<webview allowpopups>` is enabled, but all popups are intercepted in main and default behavior is denied (`action:'deny'`). We route allowed URLs into managed CloudyWindows only.
   - Host remains `contextIsolation:true`, `nodeIntegration:false`.
 
+### Site CSS Store, Editor, and Picker
+- Store: Implemented `main/siteCssStore.js` with JSON at `userData/site-css.json` and seeded starter rules for TLDraw, Excalidraw, Strudel, play.ertdfgcvb.xyz, Cables, Unit. Debounced writes.
+- Injection: Renderer queries matching rules and applies via `webview.insertCSS` on `dom-ready`/navigation.
+- Editor: Dedicated window (`sitecss-editor.html`) with simple JSON textarea; menu action to open; supports reload/format/save.
+- Picker: Webview preload injects a HUD and hover overlay; keys/buttons:
+  - T Transparent (auto‑zap) — creates a rule immediately and previews; Z undoes the last auto‑zap.
+  - H Hide (auto‑zap) — creates a hide rule; Z undoes.
+  - Enter Done — sends selector to editor and exits pick mode.
+  - Esc Cancel — exit without changes.
+- Menu/shortcut: Developer → Start DOM/CSS Picker (This Window), `Cmd+Opt+P`.
+
 ## TODO / Ideas
 
 - Per‑site CSS recipes registry + UI toggle (enable/disable for current site).

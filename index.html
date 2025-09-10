@@ -13,6 +13,19 @@
     <div id="content-root">
       <!-- Backdrop tint layer (behind content) -->
       <div id="backdrop"></div>
+    <!-- Site CSS Editor Overlay -->
+    <div id="sitecss-overlay" aria-hidden="true">
+      <div class="sitecss-toolbar">
+        <span class="title">Site CSS (site-css.json)</span>
+        <div class="spacer"></div>
+        <button id="sitecss-format" title="Format JSON">Format</button>
+        <button id="sitecss-reload" title="Reload file">Reload</button>
+        <button id="sitecss-save" title="Save">Save</button>
+        <button id="sitecss-close" title="Close">×</button>
+      </div>
+      <textarea id="sitecss-editor" spellcheck="false"></textarea>
+      <div id="sitecss-status"></div>
+    </div>
     <div id="ui-container">
         <input type="text" id="url-input" placeholder="Enter URL or drop file">
         <button id="go-button" title="Go">➠</button>

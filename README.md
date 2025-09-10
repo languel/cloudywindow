@@ -8,6 +8,8 @@ A transparent, borderless browser overlay built with Electron.
 - Drag-and-drop file and URL support
 - Open local HTML files (PDF optional; see Notes)
 - Links with `target=_blank` open in a new frameless CloudyWindow
+- Per‑site CSS rules with starter recipes (TLDraw, Excalidraw, Strudel, play.ertdfgcvb.xyz, Cables, Unit)
+- Built‑in Site CSS editor window + DOM/CSS picker with auto‑zap and undo
 - Keyboard shortcuts for UI toggling, fullscreen, and more
 - Custom frameless resize handles (edges + corners)
 - Top drag region even when UI is hidden
@@ -34,6 +36,10 @@ A transparent, borderless browser overlay built with Electron.
 - Drag and drop files or URLs anywhere on the window to open them. A "Drop file or URL" overlay appears while dragging.
   - Note: Some cross‑origin pages can swallow drag events. If drop doesn't trigger, use the shortcuts below.
 - Links that open in a new tab/window (`target=_blank`) are intercepted and opened as a new CloudyWindow with the same frameless, transparent style. New windows are managed in the Window menu.
+- Per‑site CSS:
+  - Developer → Site CSS → Edit In‑App… opens a JSON editor backed by `site-css.json` in your user data folder.
+  - Click “Start Picker” to select an element in the focused CloudyWindow. Press `T` to auto‑zap (transparent), `H` to auto‑zap (hide), `Z` to undo last auto‑zap, `Enter` to commit a picked selector to the editor.
+  - Save to persist. Rules apply on the next navigation for that site.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.
 - Keyboard shortcuts:
@@ -51,6 +57,7 @@ A transparent, borderless browser overlay built with Electron.
   - Apply transparency CSS (manual): `Cmd+Opt+T`
   - `Opt+Shift+T` - Toggle Always‑on‑Top (this window)
   - `Opt+Shift+M` - Toggle Click‑through mode (this window; global shortcut also available for recovery)
+  - `Cmd+Opt+P` - Start DOM/CSS Picker (this window)
   - `Shift+F9` - Bottom half
   - `Shift+F12` - Bottom‑right 1/16 size (1/4×1/4)
   - `Shift+F11` - Centered overscan (push site UI offscreen)
@@ -80,6 +87,7 @@ file://<path-to-repo>/default-minimal.html
 ## Notes
 - Webview is used for content: drag & drop and per‑site CSS injection are supported.
 - Popup handling: The webview has `allowpopups`, but the app intercepts all `window.open`/`_blank` requests and routes them to managed CloudyWindows (native titlebar is never shown).
+- Site CSS store: Rules live at Electron `userData/site-css.json` (per-user, survives updates). Use the in-app editor or open externally.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
 - Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
 

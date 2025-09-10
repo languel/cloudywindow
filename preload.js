@@ -40,11 +40,28 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onWindowBgAlpha: (callback) => ipcRenderer.on('window-bg-alpha', callback),
     onCanvasSafeMode: (callback) => ipcRenderer.on('canvas-safe-mode', callback),
     onPreDrawFlushToggle: (callback) => ipcRenderer.on('pre-draw-flush-toggle', callback),
+    onOpenSiteCssEditor: (callback) => ipcRenderer.on('open-site-css-editor', callback),
+    onZapCssStart: (callback) => ipcRenderer.on('zap-css-start', callback),
+    onZapCssStop: (callback) => ipcRenderer.on('zap-css-stop', callback),
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
     openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
     // Open a URL in a brand new CloudyWindow
     openUrlInNewWindow: (url) => ipcRenderer.invoke('open-url-in-new-window', url),
+    // Site CSS APIs
+    siteCssRead: () => ipcRenderer.invoke('site-css:read'),
+    siteCssWrite: (raw) => ipcRenderer.invoke('site-css:write', raw),
+    siteCssGetMatching: (url) => ipcRenderer.invoke('site-css:get-matching', url),
+    siteCssAdd: (rule) => ipcRenderer.invoke('site-css:add', rule),
+    siteCssList: () => ipcRenderer.invoke('site-css:list'),
+    siteCssReload: () => ipcRenderer.invoke('site-css:reload'),
+    siteCssOpenFile: () => ipcRenderer.invoke('site-css:open-file'),
+    siteCssStartPicker: () => ipcRenderer.invoke('site-css:start-picker'),
+    siteCssStopPicker: () => ipcRenderer.invoke('site-css:stop-picker'),
+    siteCssPickerResult: (payload) => ipcRenderer.send('site-css:picker-result', payload),
+    siteCssAutoAdd: (payload) => ipcRenderer.invoke('site-css:auto-add', payload),
+    siteCssAutoUndo: () => ipcRenderer.invoke('site-css:auto-undo'),
+    onSiteCssPickerResult: (callback) => ipcRenderer.on('site-css:picker-result', callback),
     // Provide absolute path to webview preload script
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
 });
