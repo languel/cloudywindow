@@ -16,7 +16,7 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - [ + ] Background opacity presets and Overall (content) opacity presets
 - [ + ] Window background alpha control (0% / 1%)
 - [ + ] Site CSS injection (tldraw, Strudel transparency)
-- [ ~ ] Resize handles (frameless) — basic; polish later
+- [ ~ ] Resize handles (frameless) - basic; polish later
 - [ ~ ] Multi‑window management
 - [ + ] Packaging (electron‑builder)
 

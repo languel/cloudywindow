@@ -75,18 +75,7 @@ function createWindow() {
   });
 
   newWindow.on('focus', () => {
-    // Update View menu when window is focused to reflect this window's state
-    const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
-    if (viewMenu) {
-      const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
-      if (clickThroughItem) {
-        clickThroughItem.checked = newWindow.isClickThrough;
-      }
-      const alwaysOnTopItem = viewMenu.submenu.items.find(item => item.label === 'Always on Top');
-      if (alwaysOnTopItem) {
-        alwaysOnTopItem.checked = newWindow.isAlwaysOnTop();
-      }
-    }
+    // Rebuild menu so checkboxes reflect this window's state
     updateWindowMenu();
   });
 
@@ -133,8 +122,10 @@ function closeCurrentWindow() {
 function positionWindowInQuadrant(win, quadrant) {
   if (!win) return;
   
-  // Get the primary display's work area (screen size minus taskbar/dock)
-  const workArea = screen.getPrimaryDisplay().workArea;
+  // Use the work area of the display that contains the window (not always primary)
+  const bounds = win.getBounds();
+  const display = screen.getDisplayMatching(bounds) || screen.getPrimaryDisplay();
+  const workArea = display.workArea;
   const halfWidth = Math.floor(workArea.width / 2);
   const halfHeight = Math.floor(workArea.height / 2);
   
@@ -251,6 +242,7 @@ function positionWindowInQuadrant(win, quadrant) {
 // Create application menu
 function createMenu() {
   const isMac = process.platform === 'darwin';
+  const focusedWin = BrowserWindow.getFocusedWindow();
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{
@@ -351,22 +343,26 @@ function createMenu() {
         { role: 'togglefullscreen' },
         { type: 'separator' },
         {
-          label: 'Always on Top',
+          label: 'Always on Top (This Window)',
           type: 'checkbox',
           accelerator: 'Alt+Shift+T',
+          checked: !!focusedWin && focusedWin.isAlwaysOnTop(),
+          enabled: !!focusedWin,
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
               const next = !win.isAlwaysOnTop();
               win.setAlwaysOnTop(next);
-              updateWindowMenu(); // Update menu immediately
+              updateWindowMenu(); // Rebuild so visual state stays in sync
             }
           }
         },
         {
-          label: 'Click-through Mode',
+          label: 'Click-through Mode (This Window)',
           type: 'checkbox',
           accelerator: 'Alt+Shift+M',
+          checked: !!focusedWin && !!focusedWin.isClickThrough,
+          enabled: !!focusedWin,
           click: (menuItem) => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) {
@@ -374,7 +370,7 @@ function createMenu() {
               win.isClickThrough = menuItem.checked;
               win.setIgnoreMouseEvents(menuItem.checked, { forward: true });
               win.webContents.send('ignore-mouse-events-changed', menuItem.checked);
-              updateWindowMenu(); // Update menu immediately
+              updateWindowMenu(); // Rebuild so visual state stays in sync
             }
           }
         },
@@ -723,9 +719,7 @@ function createMenu() {
     let windowIndex = 1;
     for (const win of windows) {
       const isAlwaysOnTop = win.isAlwaysOnTop();
-      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
-      const clickThroughItem = viewMenu?.submenu.items.find(item => item.label === 'Click-through Mode');
-      const isClickThrough = clickThroughItem?.checked || false;
+      const isClickThrough = !!win.isClickThrough;
       
       let statusIndicators = '';
       if (isClickThrough) statusIndicators += '👆';
@@ -822,11 +816,6 @@ app.whenReady().then(async () => {
       win.isClickThrough = !win.isClickThrough;
       win.setIgnoreMouseEvents(win.isClickThrough, { forward: true });
       win.webContents.send('ignore-mouse-events-changed', win.isClickThrough);
-      const viewMenu = Menu.getApplicationMenu()?.items.find(item => item.label === 'View');
-      if (viewMenu) {
-        const clickThroughItem = viewMenu.submenu.items.find(item => item.label === 'Click-through Mode');
-        if (clickThroughItem) clickThroughItem.checked = win.isClickThrough;
-      }
       updateWindowMenu();
     }
   });
