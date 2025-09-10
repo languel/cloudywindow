@@ -6,6 +6,7 @@
   const btnReload = document.getElementById('btnReload');
   const btnFormat = document.getElementById('btnFormat');
   const btnPicker = document.getElementById('btnPicker');
+  const btnCompact = document.getElementById('btnCompact');
 
   function setStatus(msg) { if (status) status.textContent = msg; }
 
@@ -51,6 +52,17 @@
     }
   }
 
+  async function compactHost() {
+    try {
+      // Guess host: try the last picked or ask via prompt fallback
+      const host = prompt('Host to compact (e.g., tldraw.com, editor.p5js.org):');
+      if (!host) return;
+      const res = await window.electronAPI.siteCssCompactHost(host);
+      await loadFile();
+      setStatus(res && res.ok ? `Compacted rules for ${host}` : 'No changes or error');
+    } catch (e) { setStatus('Compact error: ' + (e && e.message || e)); }
+  }
+
   function ensureRuleArray(obj) {
     if (!obj || typeof obj !== 'object') return;
     if (!Array.isArray(obj.rules)) obj.rules = [];
@@ -84,8 +96,8 @@
       const selector = payload && payload.selector ? payload.selector : '';
       const css = [];
       if (payload && payload.hints) {
+        // Default to transparent only; do not auto-insert hide
         if (payload.hints.transparent) css.push(payload.hints.transparent);
-        if (payload.hints.hide) css.push(payload.hints.hide);
       } else if (selector) {
         css.push(`${selector}{background:transparent!important}`);
       }
@@ -109,6 +121,7 @@
   if (btnSave) btnSave.addEventListener('click', saveFile);
   if (btnFormat) btnFormat.addEventListener('click', formatJson);
   if (btnPicker) btnPicker.addEventListener('click', startPicker);
+  if (btnCompact) btnCompact.addEventListener('click', compactHost);
 
   loadFile();
 

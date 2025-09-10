@@ -724,10 +724,16 @@ async function applyUserSiteCSS(currentUrl) {
     if (!window.electronAPI || typeof window.electronAPI.siteCssGetMatching !== 'function') return;
     const cssList = await window.electronAPI.siteCssGetMatching(currentUrl || '');
     if (!cssList || cssList.length === 0) { lastUserCssSig = ''; return; }
-    const sig = (currentUrl || '') + '::' + cssList.join('||');
+    // Ensure display:none rules come last
+    const sorted = cssList.slice().sort((a,b)=>{
+      const ad = /display\s*:\s*none/i.test(a);
+      const bd = /display\s*:\s*none/i.test(b);
+      return ad === bd ? 0 : (ad ? 1 : -1);
+    });
+    const sig = (currentUrl || '') + '::' + sorted.join('||');
     if (sig === lastUserCssSig) return; // avoid re-inserting identical CSS
     lastUserCssSig = sig;
-    for (const css of cssList) {
+    for (const css of sorted) {
       try { if (css && typeof css === 'string' && css.trim()) { iframe.insertCSS(css); } } catch (_) {}
     }
   } catch (_) {}

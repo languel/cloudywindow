@@ -1100,6 +1100,10 @@ ipcMain.handle('site-css:reset-host', (_e, host) => {
   }
 });
 
+ipcMain.handle('site-css:compact-host', (_e, host) => {
+  try { return { ok: siteCssStore.compactHost(host) }; } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
+
 // Open a URL in a brand new CloudyWindow instance
 ipcMain.handle('open-url-in-new-window', async (_event, url) => {
   try {

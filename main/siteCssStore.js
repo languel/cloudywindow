@@ -100,6 +100,15 @@ class SiteCssStore {
     this._saveTimer = null;
   }
 
+  _normHostKey(h) {
+    try {
+      let x = String(h || '').toLowerCase();
+      if (x.startsWith('www.')) x = x.slice(4);
+      if (x.startsWith('.')) x = x.slice(1);
+      return x;
+    } catch (_) { return String(h || '').toLowerCase(); }
+  }
+
   ensureLoaded() {
     if (this._loaded) return;
     try {
@@ -121,6 +130,7 @@ class SiteCssStore {
     } catch (_) {
       this.data = defaultData();
     }
+    try { this.compactAll(); } catch (_) {}
     this._loaded = true;
   }
 
@@ -156,6 +166,17 @@ class SiteCssStore {
     const r = Object.assign({ id: String(Date.now()) + '-' + Math.random().toString(36).slice(2), enabled: true }, rule);
     if (!r.css) r.css = [];
     if (!Array.isArray(r.css)) r.css = [String(r.css)];
+    const hostKey = this._normHostKey(r.match && r.match.host ? r.match.host : '');
+    // Filter out CSS that already exists for this host (exact match)
+    const existing = new Set();
+    for (const ex of this.data.rules) {
+      const hk = this._normHostKey(ex.match && ex.match.host ? ex.match.host : '');
+      if (hk !== hostKey) continue;
+      const cssArr = Array.isArray(ex.css) ? ex.css : (ex.css ? [String(ex.css)] : []);
+      cssArr.forEach(c => existing.add(String(c)));
+    }
+    r.css = r.css.filter(c => !existing.has(String(c)));
+    if (r.css.length === 0) return null;
     this.data.rules.push(r);
     this.saveDebounced();
     return r;
@@ -208,6 +229,58 @@ class SiteCssStore {
       }
     }
     return out;
+  }
+
+  // Remove duplicated CSS blocks per host and drop empty rules
+  compactAll() {
+    this.ensureLoaded();
+    const seenByHost = new Map(); // hostKey -> Set(css)
+    let changed = false;
+    for (const r of this.data.rules) {
+      const hostKey = this._normHostKey(r.match && r.match.host ? r.match.host : '');
+      if (!seenByHost.has(hostKey)) seenByHost.set(hostKey, new Set());
+      const seen = seenByHost.get(hostKey);
+      const before = Array.isArray(r.css) ? r.css.slice() : (r.css ? [String(r.css)] : []);
+      const after = [];
+      for (const c of before) {
+        const s = String(c);
+        if (!seen.has(s)) { after.push(s); seen.add(s); }
+        else { changed = true; }
+      }
+      r.css = after;
+    }
+    // Drop empty css rules
+    const beforeLen = this.data.rules.length;
+    this.data.rules = this.data.rules.filter(r => Array.isArray(r.css) ? r.css.length > 0 : !!r.css);
+    if (this.data.rules.length !== beforeLen) changed = true;
+    if (changed) this.saveDebounced();
+    return changed;
+  }
+
+  compactHost(host) {
+    const key = this._normHostKey(host);
+    const seen = new Set();
+    let changed = false;
+    for (const r of this.data.rules) {
+      const hk = this._normHostKey(r.match && r.match.host ? r.match.host : '');
+      if (hk !== key) continue;
+      const before = Array.isArray(r.css) ? r.css.slice() : (r.css ? [String(r.css)] : []);
+      const after = [];
+      for (const c of before) {
+        const s = String(c);
+        if (!seen.has(s)) { after.push(s); seen.add(s); }
+        else { changed = true; }
+      }
+      r.css = after;
+    }
+    const beforeLen = this.data.rules.length;
+    this.data.rules = this.data.rules.filter(r => {
+      const hk = this._normHostKey(r.match && r.match.host ? r.match.host : '');
+      return hk !== key || (Array.isArray(r.css) ? r.css.length > 0 : !!r.css);
+    });
+    if (this.data.rules.length !== beforeLen) changed = true;
+    if (changed) this.saveDebounced();
+    return changed;
   }
 }
 
