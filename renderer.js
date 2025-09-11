@@ -571,12 +571,25 @@ window.electronAPI.onOpenSiteCssEditor && window.electronAPI.onOpenSiteCssEditor
   openSiteCssEditor();
 });
 
-// Relay picker start/stop from main to the webview
+// Relay picker start/stop from main to the webview and add host-side key fallback
+let __hostPickerActive = false;
+function hostPickerKeyHandler(e) {
+  if (!__hostPickerActive) return;
+  const k = e.key;
+  try {
+    if (k === 'Escape') { iframe && iframe.send && iframe.send('zap-css-cancel'); e.preventDefault(); }
+    else if (k === 'Enter') { iframe && iframe.send && iframe.send('zap-css-commit'); e.preventDefault(); }
+  } catch (_) {}
+}
 window.electronAPI.onZapCssStart && window.electronAPI.onZapCssStart(() => {
   try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-start'); } catch (_) {}
+  __hostPickerActive = true;
+  try { window.addEventListener('keydown', hostPickerKeyHandler, true); } catch(_) {}
 });
 window.electronAPI.onZapCssStop && window.electronAPI.onZapCssStop(() => {
   try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-stop'); } catch (_) {}
+  __hostPickerActive = false;
+  try { window.removeEventListener('keydown', hostPickerKeyHandler, true); } catch(_) {}
 });
 
 let flushTimer = null;

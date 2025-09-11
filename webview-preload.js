@@ -112,7 +112,13 @@ function __zap_createHUD() {
   const btnR = mkBtn('♻️', 'Reset (R) — remove previews and user rules for this host', () => { __zap_reset(); });
   const btnDone = mkBtn('✅', 'Done (Enter) — finish picking and send to editor', () => { __zap_commit(); });
   const btnCancel = mkBtn('✖️', 'Cancel (Esc) — cancel picker', () => { __zap_cancel(); });
-  box.appendChild(btnP); box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnR); box.appendChild(btnDone); box.appendChild(btnCancel);
+  // Add a small help hint
+  const hint = document.createElement('span');
+  hint.textContent = ' P T H Z R Enter Esc ';
+  hint.style.opacity = '0.75';
+  hint.style.fontSize = '11px';
+  hint.style.marginLeft = '4px';
+  box.appendChild(btnP); box.appendChild(btnT); box.appendChild(btnH); box.appendChild(btnZ); box.appendChild(btnR); box.appendChild(btnDone); box.appendChild(btnCancel); box.appendChild(hint);
   document.documentElement.appendChild(box);
   return box;
 }
@@ -243,6 +249,9 @@ function __zap_start() {
   window.addEventListener('mousemove', __zap_onMouseMove, true);
   window.addEventListener('click', __zap_onClick, true);
   window.addEventListener('keydown', __zap_onKey, true);
+  window.addEventListener('keyup', __zap_onKey, true);
+  try { document.addEventListener('keydown', __zap_onKey, true); } catch(_) {}
+  try { document.addEventListener('keyup', __zap_onKey, true); } catch(_) {}
 }
 
 function __zap_stop() {
@@ -266,3 +275,5 @@ function __zap_reset() {
 // IPC from embedder
 ipcRenderer.on('zap-css-start', () => { try { __zap_start(); } catch (_) {} });
 ipcRenderer.on('zap-css-stop', () => { try { __zap_stop(); } catch (_) {} });
+ipcRenderer.on('zap-css-commit', () => { try { __zap_commit(); } catch (_) {} });
+ipcRenderer.on('zap-css-cancel', () => { try { __zap_cancel(); } catch (_) {} });

@@ -114,13 +114,21 @@ class SiteCssStore {
     if (this._loaded) return;
     try {
       if (fs.existsSync(this.file)) {
-        const raw = fs.readFileSync(this.file, 'utf8');
-        const parsed = JSON.parse(raw);
+        let parsed = null;
+        try {
+          const raw = fs.readFileSync(this.file, 'utf8');
+          parsed = JSON.parse(raw);
+        } catch (_) { parsed = null; }
+        if (!parsed || !Array.isArray(parsed.rules)) {
+          try {
+            const braw = fs.readFileSync(this.file + '.bak', 'utf8');
+            const bparsed = JSON.parse(braw);
+            if (bparsed && Array.isArray(bparsed.rules)) parsed = bparsed;
+          } catch (_) {}
+        }
         if (parsed && typeof parsed === 'object' && Array.isArray(parsed.rules)) {
           this.data = { version: parsed.version || 1, rules: parsed.rules };
-        }
-        // If file exists but has no rules, seed with starters
-        if (!this.data.rules || this.data.rules.length === 0) {
+        } else {
           this.data = defaultData();
           this._saveSync();
         }
@@ -145,7 +153,12 @@ class SiteCssStore {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
     } catch (_) {}
     try {
-      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2), 'utf8');
+      // Write atomically and keep a backup
+      const tmp = this.file + '.tmp';
+      const bak = this.file + '.bak';
+      try { if (fs.existsSync(this.file)) fs.copyFileSync(this.file, bak); } catch (_) {}
+      fs.writeFileSync(tmp, JSON.stringify(this.data, null, 2), 'utf8');
+      fs.renameSync(tmp, this.file);
     } catch (_) {}
   }
 

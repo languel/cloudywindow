@@ -554,7 +554,7 @@ function createMenu() {
                 const target = (win && siteCssEditorWindow && win.id === siteCssEditorWindow.id)
                   ? (lastContentWin || mainWindow || BrowserWindow.getAllWindows().find(w => w !== siteCssEditorWindow))
                   : win;
-                if (target) target.webContents.send('zap-css-start');
+                if (target) { target.webContents.send('zap-css-start'); try { target.focus(); } catch (_) {} }
               }
             },
             { type: 'separator' },
@@ -1000,6 +1000,7 @@ ipcMain.handle('site-css:start-picker', () => {
     const win = lastContentWin || mainWindow || (Array.from(windows)[0] || null);
     if (!win) return false;
     win.webContents.send('zap-css-start');
+    try { win.focus(); } catch (_) {}
     return true;
   } catch (_) { return false; }
 });
