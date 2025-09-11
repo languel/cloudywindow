@@ -164,20 +164,45 @@ class SiteCssStore {
 
   add(rule) {
     this.ensureLoaded();
-    const r = Object.assign({ id: String(Date.now()) + '-' + Math.random().toString(36).slice(2), enabled: true }, rule);
-    if (!r.css) r.css = [];
-    if (!Array.isArray(r.css)) r.css = [String(r.css)];
-    const hostKey = this._normHostKey(r.match && r.match.host ? r.match.host : '');
-    // Filter out CSS that already exists for this host (exact match)
-    const existing = new Set();
+    const incoming = Object.assign({ enabled: true }, rule);
+    if (!incoming.css) incoming.css = [];
+    if (!Array.isArray(incoming.css)) incoming.css = [String(incoming.css)];
+    const hostKey = this._normHostKey(incoming.match && incoming.match.host ? incoming.match.host : '');
+
+    // Find an existing (non-starter-prefer) rule for this host to merge into
+    let target = null;
+    for (const ex of this.data.rules) {
+      const hk = this._normHostKey(ex.match && ex.match.host ? ex.match.host : '');
+      if (hk === hostKey) { target = ex; break; }
+    }
+
+    // Build set of existing css for this host
+    const existingSet = new Set();
     for (const ex of this.data.rules) {
       const hk = this._normHostKey(ex.match && ex.match.host ? ex.match.host : '');
       if (hk !== hostKey) continue;
       const cssArr = Array.isArray(ex.css) ? ex.css : (ex.css ? [String(ex.css)] : []);
-      cssArr.forEach(c => existing.add(String(c)));
+      cssArr.forEach(c => existingSet.add(String(c)));
     }
-    r.css = r.css.filter(c => !existing.has(String(c)));
-    if (r.css.length === 0) return null;
+    const newCss = incoming.css.filter(c => !existingSet.has(String(c)));
+    if (newCss.length === 0) return target || null;
+
+    if (target) {
+      if (!Array.isArray(target.css)) target.css = target.css ? [String(target.css)] : [];
+      target.css.push(...newCss);
+      if (incoming.enabled === false) target.enabled = false;
+      this.saveDebounced();
+      return target;
+    }
+
+    // Create new rule for this host
+    const r = {
+      id: String(Date.now()) + '-' + Math.random().toString(36).slice(2),
+      enabled: incoming.enabled !== false,
+      match: incoming.match || { host: hostKey },
+      css: newCss,
+      notes: incoming.notes
+    };
     this.data.rules.push(r);
     this.saveDebounced();
     return r;

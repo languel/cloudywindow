@@ -54,9 +54,11 @@
 
   async function compactHost() {
     try {
-      // Guess host: try the last picked or ask via prompt fallback
-      const host = prompt('Host to compact (e.g., tldraw.com, editor.p5js.org):');
-      if (!host) return;
+      const text = editor.value || '';
+      const data = JSON.parse(text || '{}');
+      const hosts = Array.isArray(data.rules) ? Array.from(new Set(data.rules.map(r=> (r && r.match && r.match.host) || '').filter(Boolean))) : [];
+      if (hosts.length !== 1) { setStatus('Compact needs a single host in the store view'); return; }
+      const host = hosts[0];
       const res = await window.electronAPI.siteCssCompactHost(host);
       await loadFile();
       setStatus(res && res.ok ? `Compacted rules for ${host}` : 'No changes or error');
@@ -101,17 +103,20 @@
       } else if (selector) {
         css.push(`${selector}{background:transparent!important}`);
       }
-      const rule = {
-        id: 'pick-' + Date.now(),
-        enabled: true,
-        match: host ? { host } : {},
-        css,
-        notes: selector ? `Picked: ${selector}` : 'Picked element'
-      };
-      data.rules.push(rule);
+      // Merge into a single host entry if present
+      let target = Array.isArray(data.rules) ? data.rules.find(r => r && r.match && r.match.host === host) : null;
+      if (!target) {
+        target = { id: 'pick-' + Date.now(), enabled: true, match: host ? { host } : {}, css: [], notes: 'User CSS' };
+        data.rules.push(target);
+      }
+      const existing = new Set(Array.isArray(target.css) ? target.css : (target.css ? [String(target.css)] : []));
+      for (const c of css) {
+        const s = String(c);
+        if (!existing.has(s)) { (target.css || (target.css=[])).push(s); existing.add(s); }
+      }
       editor.value = JSON.stringify(data, null, 2);
       setStatus(`Inserted rule for ${host || 'site'} — review and Save`);
-      highlightRuleById(rule.id);
+      highlightRuleById(target.id);
     } catch (e) {
       setStatus('Insert error: ' + (e && e.message || e));
     }
@@ -127,8 +132,11 @@
     const elEn = document.getElementById('btnEnable');
     if (elEn) elEn.addEventListener('click', async () => {
       try {
-        const host = prompt('Enable host (e.g., tldraw.com):');
-        if (!host) return;
+        const text = editor.value || '';
+        const data = JSON.parse(text || '{}');
+        const hosts = Array.isArray(data.rules) ? Array.from(new Set(data.rules.map(r=> (r && r.match && r.match.host) || '').filter(Boolean))) : [];
+        if (hosts.length !== 1) { setStatus('Enable needs a single host in the store view'); return; }
+        const host = hosts[0];
         const res = await window.electronAPI.siteCssSetHostEnabled(host, true);
         await loadFile();
         setStatus(res && res.ok ? `Enabled ${res.updated||0} rule(s) for ${host}` : 'No changes or error');
@@ -139,8 +147,11 @@
     const elDis = document.getElementById('btnDisable');
     if (elDis) elDis.addEventListener('click', async () => {
       try {
-        const host = prompt('Disable host (e.g., tldraw.com):');
-        if (!host) return;
+        const text = editor.value || '';
+        const data = JSON.parse(text || '{}');
+        const hosts = Array.isArray(data.rules) ? Array.from(new Set(data.rules.map(r=> (r && r.match && r.match.host) || '').filter(Boolean))) : [];
+        if (hosts.length !== 1) { setStatus('Disable needs a single host in the store view'); return; }
+        const host = hosts[0];
         const res = await window.electronAPI.siteCssSetHostEnabled(host, false);
         await loadFile();
         setStatus(res && res.ok ? `Disabled ${res.updated||0} rule(s) for ${host}` : 'No changes or error');
@@ -151,7 +162,6 @@
     const elClr = document.getElementById('btnClear');
     if (elClr) elClr.addEventListener('click', async () => {
       try {
-        if (!confirm('Clear all rules and start with a blank store?')) return;
         const res = await window.electronAPI.siteCssClearAll();
         await loadFile();
         setStatus(res && res.ok ? 'Cleared all rules' : 'Clear failed');
