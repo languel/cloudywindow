@@ -122,6 +122,42 @@
   if (btnFormat) btnFormat.addEventListener('click', formatJson);
   if (btnPicker) btnPicker.addEventListener('click', startPicker);
   if (btnCompact) btnCompact.addEventListener('click', compactHost);
+  // Enable/disable and clear controls (query elements on demand)
+  try {
+    const elEn = document.getElementById('btnEnable');
+    if (elEn) elEn.addEventListener('click', async () => {
+      try {
+        const host = prompt('Enable host (e.g., tldraw.com):');
+        if (!host) return;
+        const res = await window.electronAPI.siteCssSetHostEnabled(host, true);
+        await loadFile();
+        setStatus(res && res.ok ? `Enabled ${res.updated||0} rule(s) for ${host}` : 'No changes or error');
+      } catch (e) { setStatus('Enable error: ' + (e && e.message || e)); }
+    });
+  } catch(_) {}
+  try {
+    const elDis = document.getElementById('btnDisable');
+    if (elDis) elDis.addEventListener('click', async () => {
+      try {
+        const host = prompt('Disable host (e.g., tldraw.com):');
+        if (!host) return;
+        const res = await window.electronAPI.siteCssSetHostEnabled(host, false);
+        await loadFile();
+        setStatus(res && res.ok ? `Disabled ${res.updated||0} rule(s) for ${host}` : 'No changes or error');
+      } catch (e) { setStatus('Disable error: ' + (e && e.message || e)); }
+    });
+  } catch(_) {}
+  try {
+    const elClr = document.getElementById('btnClear');
+    if (elClr) elClr.addEventListener('click', async () => {
+      try {
+        if (!confirm('Clear all rules and start with a blank store?')) return;
+        const res = await window.electronAPI.siteCssClearAll();
+        await loadFile();
+        setStatus(res && res.ok ? 'Cleared all rules' : 'Clear failed');
+      } catch (e) { setStatus('Clear error: ' + (e && e.message || e)); }
+    });
+  } catch(_) {}
 
   loadFile();
 

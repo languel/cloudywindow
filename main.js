@@ -1103,6 +1103,28 @@ ipcMain.handle('site-css:reset-host', (_e, host) => {
 ipcMain.handle('site-css:compact-host', (_e, host) => {
   try { return { ok: siteCssStore.compactHost(host) }; } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
+ipcMain.handle('site-css:set-host-enabled', (_e, host, enabled) => {
+  try {
+    if (!host) return { ok: false, error: 'no host' };
+    const rules = siteCssStore.list();
+    let count = 0;
+    for (const r of rules) {
+      const h = r && r.match && r.match.host ? String(r.match.host).toLowerCase() : '';
+      if (h === String(host).toLowerCase()) { siteCssStore.update(r.id, { enabled: !!enabled }); count++; }
+    }
+    return { ok: true, updated: count };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
+ipcMain.handle('site-css:clear-all', () => {
+  try {
+    const blank = JSON.stringify({ version: 1, rules: [] }, null, 2);
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, blank, 'utf8');
+    siteCssStore.reload();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
 
 // Open a URL in a brand new CloudyWindow instance
 ipcMain.handle('open-url-in-new-window', async (_event, url) => {

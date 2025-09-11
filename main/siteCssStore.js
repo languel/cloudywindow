@@ -89,7 +89,8 @@ function starterRules() {
 }
 
 function defaultData() {
-  return { version: 1, rules: starterRules() };
+  // Start blank; starter rules can be added explicitly
+  return { version: 1, rules: [] };
 }
 
 class SiteCssStore {
