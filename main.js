@@ -559,6 +559,17 @@ function createMenu() {
             },
             { type: 'separator' },
             {
+              label: 'Clear All Site CSS Rules',
+              click: () => {
+                try {
+                  const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+                  fs.mkdirSync(path.dirname(p), { recursive: true });
+                  fs.writeFileSync(p, JSON.stringify({version:1,rules:[]},null,2));
+                  siteCssStore.reload();
+                } catch(_) {}
+              }
+            },
+            {
               label: 'Apply Transparency CSS',
               accelerator: 'CmdOrCtrl+Alt+T',
               click: () => {
@@ -578,6 +589,9 @@ function createMenu() {
             {
               label: 'Site CSS',
               submenu: [
+                { label: 'Enable for Current Host', click: async () => { try { const win = BrowserWindow.getFocusedWindow() || lastContentWin || mainWindow; if (!win) return; const host = await win.webContents.executeJavaScript(`(()=>{try{const w=document.getElementById('content-frame');if(!w) return '';const u=(w.getURL?w.getURL():w.src)||'';return u?new URL(u).hostname:'';}catch(_){return ''}})()`); if (!host) return; const rules = siteCssStore.list(); rules.forEach(r => { const h=(r.match&&r.match.host||'').toLowerCase(); if (h===host.toLowerCase()) siteCssStore.update(r.id,{enabled:true}); }); } catch(_) {} } },
+                { label: 'Disable for Current Host', click: async () => { try { const win = BrowserWindow.getFocusedWindow() || lastContentWin || mainWindow; if (!win) return; const host = await win.webContents.executeJavaScript(`(()=>{try{const w=document.getElementById('content-frame');if(!w) return '';const u=(w.getURL?w.getURL():w.src)||'';return u?new URL(u).hostname:'';}catch(_){return ''}})()`); if (!host) return; const rules = siteCssStore.list(); rules.forEach(r => { const h=(r.match&&r.match.host||'').toLowerCase(); if (h===host.toLowerCase()) siteCssStore.update(r.id,{enabled:false}); }); } catch(_) {} } },
+                { type: 'separator' },
                 {
                   label: 'Edit In-App…',
                   click: () => { openSiteCssEditorWindow(); }
