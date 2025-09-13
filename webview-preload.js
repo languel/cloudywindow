@@ -158,6 +158,7 @@ function __zap_undo() {
 }
 
 function __zap_commit() {
+  if (!__zap_active) return;
   const el = __zap_lastEl;
   const selector = __zap_computeSelector(el);
   const url = (location && location.href) || '';

@@ -575,6 +575,18 @@ window.electronAPI.onOpenSiteCssEditor && window.electronAPI.onOpenSiteCssEditor
 let __hostPickerActive = false;
 function hostPickerKeyHandler(e) {
   if (!__hostPickerActive) return;
+  // Ignore keys originating from host UI or editable inputs
+  try {
+    const t = e && e.target;
+    if (t) {
+      const tag = (t.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (t.isContentEditable) return;
+      if (typeof t.closest === 'function') {
+        if (t.closest('#ui-container') || t.closest('#sitecss-overlay')) return;
+      }
+    }
+  } catch (_) {}
   const k = e.key;
   try {
     if (k === 'Escape') { iframe && iframe.send && iframe.send('zap-css-cancel'); e.preventDefault(); }
