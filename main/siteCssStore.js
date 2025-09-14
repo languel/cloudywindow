@@ -243,8 +243,17 @@ class SiteCssStore {
     this.ensureLoaded();
     let u;
     try { u = new URL(url); } catch (_) { return []; }
-    const proto = (u.protocol || '').replace(':','');
-    const host = (u.hostname || '').toLowerCase();
+    let proto = (u.protocol || '').replace(':','');
+    let host = (u.hostname || '').toLowerCase();
+    // Special-case blob: URLs (e.g., blob:http://localhost:5001/uuid)
+    if (proto === 'blob') {
+      try {
+        const inner = String(url).replace(/^blob:/, '');
+        const uu = new URL(inner);
+        proto = (uu.protocol || '').replace(':','') || proto;
+        host = (uu.hostname || '').toLowerCase() || host;
+      } catch (_) {}
+    }
     const pathName = u.pathname || '/';
     const out = [];
     for (const r of this.data.rules) {

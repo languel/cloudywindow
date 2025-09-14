@@ -69,8 +69,10 @@ function navigateToUrl(url) {
   console.log('navigateToUrl called with:', url);
   if (!url) return;
     let fullUrl = url;
-    if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
-        fullUrl = 'http://' + url;
+    // Treat absolute URLs including blob:/data:/file:/about: as already absolute
+    const isAbsolute = /^(https?:|file:|blob:|data:|about:)/i.test(url);
+    if (!isAbsolute) {
+      fullUrl = 'http://' + url;
     }
     // Ensure webview has a valid absolute preload path
     try {
@@ -655,6 +657,23 @@ function injectSiteCSS(url) {
     try { iframe.insertCSS(css); } catch (_) {}
   }
 
+  // P5LIVE (teddavis.org/p5live or p5live.org): clear app shell backgrounds
+  if (u.includes('p5live')) {
+    const css = `
+      html, body, #loader-bg, #menu, .menu-bg, .menu-section-bg, .menu-header, #menu-switch, #ref-bg, .panel, #panel-menu, #panel-settings, #p5-editor {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+      #loader-bg { opacity: 0 !important; pointer-events: none !important; }
+      /* Ace editor surfaces */
+      .ace_scroller, .ace_content, .ace_gutter, .ace_marker-layer .ace_active-line, .ace_line_bg {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+  }
+
   // Strudel (strudel.cc / tidal strudel): try to make background transparent
   if (u.includes('strudel')) {
     const css = `
@@ -690,7 +709,7 @@ function injectSiteCSS(url) {
 function installTransparencyGuard(url) {
   if (!iframe || typeof iframe.executeJavaScript !== 'function') return;
   const u = (url || '').toLowerCase();
-  if (!(u.includes('tldraw') || u.includes('unit.moe'))) return;
+  if (!(u.includes('tldraw') || u.includes('unit.moe') || u.includes('p5live'))) return;
   const script = `(() => {
     try {
       if (window.__cloudy_transparency_guard_installed) return;
@@ -709,7 +728,10 @@ function installTransparencyGuard(url) {
             '.tlui','.tlui__editor','.tlui__container','.tlui__page','.tlui__panel',
             '.tldraw','.tldraw__editor','.tl','.tl-theme',
             '.app','.App','.container','.content','.editor','.workspace','.canvas',
-            "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]"
+            "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]",
+            /* P5LIVE-specific shells */
+            '#loader','#loader-bg','#menu','.menu-bg','.menu-section-bg','.menu-header','#menu-switch','#ref-bg',
+            '.panel','#panel-menu','#panel-settings','#p5-editor','.ace_scroller','.ace_content','.ace_gutter','.ace_marker-layer .ace_active-line','.ace_line_bg'
           ];
           const nodes = document.querySelectorAll(sels.join(','));
           nodes.forEach(el => {

@@ -895,6 +895,27 @@ app.whenReady().then(async () => {
       if (contents && contents.getType && contents.getType() === 'webview') {
         contents.setWindowOpenHandler((details) => {
           const url = details && details.url ? details.url : '';
+          // Allow blob/data/about:blank popups so they retain the opener's
+          // execution context (needed for blob: URLs like p5live's split view).
+          // Make these popup windows match main CloudyWindow style: frameless + transparent.
+          if (!url || url === 'about:blank' || url.startsWith('blob:') || url.startsWith('data:')) {
+            return {
+              action: 'allow',
+              overrideBrowserWindowOptions: {
+                width: 800,
+                height: 600,
+                transparent: true,
+                frame: false,
+                hasShadow: false,
+                backgroundColor: '#00000001',
+                webPreferences: {
+                  contextIsolation: true,
+                  nodeIntegration: false,
+                  preload: path.join(__dirname, 'popup-preload.js')
+                }
+              }
+            };
+          }
           if (url && url !== 'about:blank') {
             try {
               const win = createWindow();
@@ -903,9 +924,22 @@ app.whenReady().then(async () => {
               });
             } catch (_) {}
           }
-          // Always deny default popup; we handle it ourselves
+          // Always deny default popup for http/https; we handled it above
           return { action: 'deny' };
         });
+
+        // When a popup is created (allowed above), inject a minimal transparency CSS fallback
+        try {
+          contents.on('did-create-window', (child, _details) => {
+            try {
+              child.webContents.on('dom-ready', () => {
+                try {
+                  child.webContents.insertCSS('html,body,video,canvas{background:transparent!important;background-color:transparent!important}');
+                } catch (_) {}
+              });
+            } catch (_) {}
+          });
+        } catch (_) {}
       }
     } catch (_) {}
   });

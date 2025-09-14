@@ -1,33 +1,6 @@
-// Preload for <webview>: capture drag & drop events and forward to host
-// Runs in the isolated world of the guest page
+// Preload for popup BrowserWindows spawned from webview (blob:/data:)
+// Installs the Zap CSS picker and communicates directly with main via IPC.
 const { ipcRenderer } = require('electron');
-
-function safeSend(channel, payload) {
-  try { ipcRenderer.sendToHost(channel, payload); } catch (_) {}
-}
-
-window.addEventListener('dragenter', (e) => {
-  e.preventDefault();
-  safeSend('wv-dragover');
-});
-
-window.addEventListener('dragover', (e) => {
-  e.preventDefault();
-  safeSend('wv-dragover');
-});
-
-window.addEventListener('dragleave', (e) => {
-  e.preventDefault();
-  safeSend('wv-dragleave');
-});
-
-window.addEventListener('drop', (e) => {
-  e.preventDefault();
-  const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files).map(f => f.path) : [];
-  const uriList = e.dataTransfer?.getData ? e.dataTransfer.getData('text/uri-list') : '';
-  const text = e.dataTransfer?.getData ? e.dataTransfer.getData('text/plain') : '';
-  safeSend('wv-drop', { files, uriList, text });
-});
 
 // ---- Zap CSS picker (install/uninstall + selector computation) ----
 let __zap_active = false;
@@ -105,14 +78,13 @@ function __zap_createHUD() {
     b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); try { handler(); } catch(_){} });
     return b;
   };
-  const btnP = mkBtn('📄', 'Page/Root Transparent (P) — try to clear page background', () => { __zap_auto('page'); });
-  const btnT = mkBtn('🫥', 'Transparent (T) — auto‑zap: make background transparent', () => { __zap_auto('transparent'); });
-  const btnH = mkBtn('🙈', 'Hide (H) — auto‑zap: hide element', () => { __zap_auto('hide'); });
+  const btnP = mkBtn('📄', 'Page/Root Transparent (P) — clear page background', () => { __zap_auto('page'); });
+  const btnT = mkBtn('🫥', 'Transparent (T) — make background transparent', () => { __zap_auto('transparent'); });
+  const btnH = mkBtn('🙈', 'Hide (H) — hide element', () => { __zap_auto('hide'); });
   const btnZ = mkBtn('↩️', 'Undo (Z) — undo last auto‑zap preview', () => { __zap_undo(); });
-  const btnR = mkBtn('♻️', 'Reset (R) — remove previews and user rules for this host', () => { __zap_reset(); });
+  const btnR = mkBtn('♻️', 'Reset (R) — remove previews and stored rules for this host', () => { __zap_reset(); });
   const btnDone = mkBtn('✅', 'Done (Enter) — finish picking and send to editor', () => { __zap_commit(); });
   const btnCancel = mkBtn('✖️', 'Cancel (Esc) — cancel picker', () => { __zap_cancel(); });
-  // Add a small help hint
   const hint = document.createElement('span');
   hint.textContent = ' P T H Z R Enter Esc ';
   hint.style.opacity = '0.75';
@@ -133,7 +105,7 @@ function __zap_auto(kind) {
     cssText = `${selector}{display:none!important}`;
   } else if (kind === 'page') {
     cssText = [
-      'html,body,#root,#__next,#app,.app,.container,.content,.editor,.workspace,.main,.page,#loader-bg{background:transparent!important;background-color:transparent!important}',
+      'html,body,#root,#__next,#app,.app,.container,.content,.editor,.workspace,.main,.page{background:transparent!important;background-color:transparent!important}',
       'canvas,svg,video{background:transparent!important;background-color:transparent!important}'
     ].join('\n');
   } else {
@@ -149,12 +121,12 @@ function __zap_auto(kind) {
     host: location && location.host,
     path: location && location.pathname
   };
-  safeSend('zap-css-auto', payload);
+  try { ipcRenderer.invoke('site-css:auto-add', payload); } catch (_) {}
 }
 
 function __zap_undo() {
   __zap_undoPreview();
-  safeSend('zap-css-undo', {});
+  try { ipcRenderer.invoke('site-css:auto-undo'); } catch (_) {}
 }
 
 function __zap_commit() {
@@ -173,22 +145,19 @@ function __zap_commit() {
       dim: `${selector}{opacity:0.2!important}`
     }
   };
-  safeSend('zap-css-picked', payload);
+  try { ipcRenderer.send('site-css:picker-result', payload); } catch (_) {}
   __zap_stop();
 }
 
 function __zap_cancel() {
-  safeSend('zap-css-cancelled', {});
   __zap_stop();
 }
 
 function __zap_computeSelector(el) {
   if (!el || el.nodeType !== 1) return '';
-  // id first
   if (el.id && /^[A-Za-z_][\w\-:.]*$/.test(el.id)) {
     return `#${CSS.escape ? CSS.escape(el.id) : el.id}`;
   }
-  // build from tag + classes up the tree until unique
   const esc = (t) => (CSS.escape ? CSS.escape(t) : String(t).replace(/([!"#$%&'()*+,./:;<=>?@\[\]^`{|}~ ])/g, '\\$1'));
   const parts = [];
   let cur = el;
@@ -198,7 +167,6 @@ function __zap_computeSelector(el) {
       const cls = Array.from(cur.classList).slice(0, 3).map(c => '.' + esc(c)).join('');
       sel += cls;
     }
-    // ensure uniqueness at this level with nth-of-type if needed
     if (cur.parentElement) {
       const tag = cur.tagName;
       const siblings = Array.from(cur.parentElement.children).filter(ch => ch.tagName === tag);
@@ -237,7 +205,7 @@ function __zap_onKey(e) {
   else if (k === 't' || k === 'T') { e.preventDefault(); e.stopPropagation(); __zap_auto('transparent'); }
   else if (k === 'h' || k === 'H') { e.preventDefault(); e.stopPropagation(); __zap_auto('hide'); }
   else if (k === 'z' || k === 'Z') { e.preventDefault(); e.stopPropagation(); __zap_undo(); }
-  else if (k === 'r' || k === 'R') { e.preventDefault(); e.stopPropagation(); __zap_reset(); }
+  else if (k === 'r' || k === 'R') { e.preventDefault(); e.stopPropagation(); try { const host = (location && location.host) || ''; ipcRenderer.invoke('site-css:reset-host', host); } catch (_) {} }
 }
 
 function __zap_start() {
@@ -265,16 +233,19 @@ function __zap_stop() {
   if (__zap_hud) __zap_hud.style.display = 'none';
 }
 
-function __zap_reset() {
-  // Remove all previews
-  try { while (__zap_previewStack.length) { __zap_undoPreview(); } } catch (_) {}
-  // Ask host to clear stored user rules for this host
-  const host = (location && location.host) || '';
-  safeSend('zap-css-reset', { host });
-}
-
-// IPC from embedder
+// IPC hooks from main menu
 ipcRenderer.on('zap-css-start', () => { try { __zap_start(); } catch (_) {} });
 ipcRenderer.on('zap-css-stop', () => { try { __zap_stop(); } catch (_) {} });
 ipcRenderer.on('zap-css-commit', () => { try { __zap_commit(); } catch (_) {} });
 ipcRenderer.on('zap-css-cancel', () => { try { __zap_cancel(); } catch (_) {} });
+
+// Try to clear obvious solid backgrounds by default on load
+function __applyInitialTransparency() {
+  try {
+    const css = `html,body,video,canvas,#root,#app{background:transparent!important;background-color:transparent!important}`;
+    const st = document.createElement('style'); st.textContent = css; (document.head||document.documentElement).appendChild(st);
+  } catch (_) {}
+}
+
+document.addEventListener('DOMContentLoaded', __applyInitialTransparency);
+
