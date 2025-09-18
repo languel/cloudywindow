@@ -239,6 +239,14 @@ ipcRenderer.on('zap-css-stop', () => { try { __zap_stop(); } catch (_) {} });
 ipcRenderer.on('zap-css-commit', () => { try { __zap_commit(); } catch (_) {} });
 ipcRenderer.on('zap-css-cancel', () => { try { __zap_cancel(); } catch (_) {} });
 
+// Allow forcing P5LIVE transparency from the app menu when popup is focused
+ipcRenderer.on('force-p5live-transparency', () => {
+  try {
+    const css = 'html,body,video,canvas{background:transparent!important;background-color:transparent!important}';
+    const st = document.createElement('style'); st.textContent = css; (document.head||document.documentElement).appendChild(st);
+  } catch (_) {}
+});
+
 // Try to clear obvious solid backgrounds by default on load
 function __applyInitialTransparency() {
   try {
@@ -248,4 +256,3 @@ function __applyInitialTransparency() {
 }
 
 document.addEventListener('DOMContentLoaded', __applyInitialTransparency);
-

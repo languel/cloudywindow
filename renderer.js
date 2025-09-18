@@ -660,7 +660,7 @@ function injectSiteCSS(url) {
   // P5LIVE (teddavis.org/p5live or p5live.org): clear app shell backgrounds
   if (u.includes('p5live')) {
     const css = `
-      html, body, #loader-bg, #menu, .menu-bg, .menu-section-bg, .menu-header, #menu-switch, #ref-bg, .panel, #panel-menu, #panel-settings, #p5-editor {
+      html, body, #loader-bg, #menu, .menu-bg, .menu-section-bg, .menu-header, #menu-switch, #ref-bg, .panel, #panel-menu, #panel-settings, #p5-editor, #p5-frame, #p5-frame-cover {
         background: transparent !important;
         background-color: transparent !important;
       }
@@ -731,7 +731,8 @@ function installTransparencyGuard(url) {
             "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]",
             /* P5LIVE-specific shells */
             '#loader','#loader-bg','#menu','.menu-bg','.menu-section-bg','.menu-header','#menu-switch','#ref-bg',
-            '.panel','#panel-menu','#panel-settings','#p5-editor','.ace_scroller','.ace_content','.ace_gutter','.ace_marker-layer .ace_active-line','.ace_line_bg'
+            '.panel','#panel-menu','#panel-settings','#p5-editor','#p5-frame','#p5-frame-cover',
+            '.ace_scroller','.ace_content','.ace_gutter','.ace_marker-layer .ace_active-line','.ace_line_bg'
           ];
           const nodes = document.querySelectorAll(sels.join(','));
           nodes.forEach(el => {
@@ -825,6 +826,12 @@ if (iframe) {
   // Manual transparency shortcut handler
   window.electronAPI.onApplyTransparencyCSS && window.electronAPI.onApplyTransparencyCSS(() => {
     try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    injectGenericTransparency();
+  });
+
+  // Force P5LIVE-specific transparency injection regardless of the current URL
+  window.electronAPI.onForceP5LiveTransparency && window.electronAPI.onForceP5LiveTransparency(() => {
+    try { injectSiteCSS('https://p5live.local/'); installTransparencyGuard('https://p5live.local/'); } catch (_) {}
     injectGenericTransparency();
   });
   // Bridge DnD events coming from the guest page via preload

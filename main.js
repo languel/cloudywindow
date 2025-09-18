@@ -578,6 +578,14 @@ function createMenu() {
               }
             },
             {
+              label: 'Force P5LIVE Transparency (This Window)',
+              accelerator: 'CmdOrCtrl+Alt+Shift+T',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('force-p5live-transparency');
+              }
+            },
+            {
               label: 'Hard Flush Content',
               accelerator: 'CmdOrCtrl+Alt+F',
               click: () => {
