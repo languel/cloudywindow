@@ -94,12 +94,19 @@ Notes:
   - New window `Cmd+N`; New fullscreen window `Cmd+Opt+N` (fills work area).
   - Open File `Cmd+O` (no filters; any file). Open Folder `Cmd+Shift+O`.
   - Save Screenshot `Cmd+Shift+S` - captures current window to PNG.
+  - Hide Cursor (this window) `Cmd+Shift+H` (per-window toggle; sticky across navigations; known re-entry race noted below).
 
 - Text viewer (UTF-8)
   - Dropping or opening `.txt/.md/.log/.nfo/.asc` renders via a minimal HTML wrapper with monospace fonts and Unicode symbol fallbacks (fixes mojibake for block art).
 
 - Initial flicker smoothing
   - Added a short "navigation hold" around file:/ and blob: navigations, ending on `dom-ready`/`did-stop-loading` (longer for video/PDF). Works alongside Pre-Draw Hard Flush.
+
+- Preferences & Startup
+  - Added settings store at `userData/settings.json` with startup file/folder, startup mode (normal/fullscreen/fill-screen/overscan), target display, hide cursor at startup.
+  - Preferences menu entries to set/view these options.
+  - Startup navigation applied after first window load, with folder resolution (index.html or first .html).
+  - Window menu: Move This Window To [Display] for quick placement.
 
 ### Known Issue: Cursor Hide Re-entry Race (per-window)
 

@@ -86,6 +86,7 @@ A transparent, borderless browser overlay built with Electron.
   - `Opt+Shift+M` - Toggle Click‑through mode (this window; global shortcut also available for recovery)
   - `Cmd+Opt+P` - Start DOM/CSS Picker (this window)
   - `Cmd+Shift+S` - Save screenshot (PNG) of the current window
+  - `Cmd+Shift+H` - Hide cursor (this window)
   - `Shift+F9` - Bottom half
   - `Shift+F12` - Bottom‑right 1/16 size (1/4×1/4)
   - `Shift+F11` - Centered overscan (push site UI offscreen)

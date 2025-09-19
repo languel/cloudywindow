@@ -13,6 +13,8 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - [ + ] File/folder open (folder → index.html)
 - [ + ] Drag & drop (files/URLs/folders) over the window
 - [ + ] Toggle UI and URL bar, Always-on-Top, Click-through
+- [ + ] Preferences/Startup: startup file/folder, startup mode, target display, hide-cursor
+- [ + ] Screenshot capture
 - [ + ] Background opacity presets and Overall (content) opacity presets
 - [ + ] Window background alpha control (0% / 1%)
 - [ + ] Site CSS injection (tldraw, Strudel transparency)
@@ -40,14 +42,18 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 
 ## Shortcuts (current)
 
-- Open file: `Cmd+Opt+O`
-- Open folder (index.html): `Opt+Shift+O`
+- New window: `Cmd+N`
+- New fullscreen window: `Cmd+Opt+N`
+- Open file: `Cmd+O`
+- Open folder (index.html): `Cmd+Shift+O`
 - Reload content: `Cmd+Opt+R` (webview)
 - Reload app: `Opt+Shift+R`
 - Toggle UI: `Cmd+Opt+U`
 - Go to URL bar: `Cmd+Opt+L`
-- Always‑on‑Top: `Opt+Shift+T`
-- Click‑through: `Opt+Shift+M`
+- Always-on-Top: `Opt+Shift+T`
+- Click-through: `Opt+Shift+M`
+- Hide cursor (this window): `Cmd+Shift+H`
+- Save screenshot: `Cmd+Shift+S`
 - Flash border: `Cmd+Opt+B`
 - Background opacity: `Opt+Shift+0/5/1`, step `Opt+Shift+[ / ]`
 - Overall (content) opacity: `Cmd+Opt+0/5/1`, step `Cmd+Opt+[ / ]`
