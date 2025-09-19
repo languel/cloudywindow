@@ -1,4 +1,4 @@
-# Zap CSS and Per‑Site CSS — Design
+# Zap CSS and Per‑Site CSS - Design
 
 This document proposes an approach for user‑defined, per‑site CSS and an interactive “Zap CSS” tool that lets users pick elements in a page and apply style fixes (e.g., make backgrounds transparent, hide blocks).
 

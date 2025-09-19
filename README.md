@@ -47,10 +47,10 @@ A transparent, borderless browser overlay built with Electron.
 
 - Environment and build settings: see `docs/ENV.md` for icon generation via `.env` and notes on runtime transparency/safety toggles.
 - Scripts:
-  - `npm start` — run the app in development.
-  - `npm run icon` — generate a macOS icon from an emoji (uses `.env`, macOS only).
-  - `npm run build` — build distributables via electron-builder (invokes icon generation on macOS).
-  - `npm run clean` — remove ignored files (dangerous; review with `npm run clean:dry`).
+  - `npm start` - run the app in development.
+  - `npm run icon` - generate a macOS icon from an emoji (uses `.env`, macOS only).
+  - `npm run build` - build distributables via electron-builder (invokes icon generation on macOS).
+  - `npm run clean` - remove ignored files (dangerous; review with `npm run clean:dry`).
 
 ## Usage
 - Use the navigation bar to enter URLs or open files.

@@ -1,4 +1,4 @@
-# Product Requirements Document (PRD) — CloudyWindow (feature/webview)
+# Product Requirements Document (PRD) - CloudyWindow (feature/webview)
 
 This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log of experiments and fixes.
 
@@ -58,7 +58,7 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 
 ---
 
-## Webview Migration — Plan and Rationale
+## Webview Migration - Plan and Rationale
 
 Goal: Replace the old `<iframe>` with `<webview>` for reliable drag‑and‑drop, per‑site CSS injection (tldraw/Strudel), better control, and future “Zap CSS”.
 

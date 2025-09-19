@@ -15,7 +15,7 @@ function openSiteCssEditorWindow() {
   siteCssEditorWindow = new BrowserWindow({
     width: 800,
     height: 640,
-    title: 'CloudyWindow — Site CSS',
+    title: 'CloudyWindow - Site CSS',
     backgroundColor: '#1e1e1e',
     frame: true,
     transparent: false,
@@ -278,7 +278,7 @@ function createMenu() {
     const win = new BrowserWindow({
       width: 800,
       height: 640,
-      title: 'CloudyWindow — Site CSS',
+      title: 'CloudyWindow - Site CSS',
       backgroundColor: '#1e1e1e',
       frame: true,
       transparent: false,

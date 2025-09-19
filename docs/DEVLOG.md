@@ -1,8 +1,8 @@
-# Dev Log — CloudyWindow (feature/webview)
+# Dev Log - CloudyWindow (feature/webview)
 
 This document tracks notable issues, decisions, and fixes while developing the webview‑based overlay.
 
-## 2025‑09 — Webview migration + transparency fixes
+## 2025‑09 - Webview migration + transparency fixes
 
 - Drag & drop over content
   - Problem: iframe swallowed drag events cross‑origin; overlay didn’t trigger.
@@ -45,10 +45,10 @@ This document tracks notable issues, decisions, and fixes while developing the w
 - Injection: Renderer queries matching rules and applies via `webview.insertCSS` on `dom-ready`/navigation.
 - Editor: Dedicated window (`sitecss-editor.html`) with simple JSON textarea; menu action to open; supports reload/format/save.
 - Picker: Webview preload injects a HUD and hover overlay; keys/buttons:
-  - T Transparent (auto‑zap) — creates a rule immediately and previews; Z undoes the last auto‑zap.
-  - H Hide (auto‑zap) — creates a hide rule; Z undoes.
-  - Enter Done — sends selector to editor and exits pick mode.
-  - Esc Cancel — exit without changes.
+  - T Transparent (auto‑zap) - creates a rule immediately and previews; Z undoes the last auto‑zap.
+  - H Hide (auto‑zap) - creates a hide rule; Z undoes.
+  - Enter Done - sends selector to editor and exits pick mode.
+  - Esc Cancel - exit without changes.
 - Menu/shortcut: Developer → Start DOM/CSS Picker (This Window), `Cmd+Opt+P`.
 
 ## TODO / Ideas
@@ -57,7 +57,7 @@ This document tracks notable issues, decisions, and fixes while developing the w
 - Optional micro‑fade on backdrop changes only (if needed); keep webview static.
 - Consider an in‑app “Zap CSS” tool for one‑off removals, store per‑site CSS.
 
-## 2025‑09 — DnD + Packaged App Robustness
+## 2025‑09 - DnD + Packaged App Robustness
 
 - Packaged DnD reliability
   - Problem: In packaged apps, drops sometimes provide no filesystem path (especially from Finder or guest pages). File URLs weren’t properly encoded; preload path could be relative.
@@ -85,7 +85,7 @@ This document tracks notable issues, decisions, and fixes while developing the w
 Notes:
 - The Chromium “Invalid mailbox”/SharedImageManager warnings were observed during blob navigations when a frame is torn down mid‑composite; this is benign and reduced after preventing duplicate drop handling.
 
-## 2025‑09 — UX Polish: Dragging, Shortcuts, Flicker Smoothing, Screenshots
+## 2025‑09 - UX Polish: Dragging, Shortcuts, Flicker Smoothing, Screenshots
 
 - Frameless window dragging
   - Added an Opt+Shift modifier drag overlay (`-webkit-app-region: drag`) so you can hold Opt+Shift and drag anywhere to move the window. The overlay is transparent and suppressed during DnD.
@@ -93,7 +93,7 @@ Notes:
 - Shortcuts updates
   - New window `Cmd+N`; New fullscreen window `Cmd+Opt+N` (fills work area).
   - Open File `Cmd+O` (no filters; any file). Open Folder `Cmd+Shift+O`.
-  - Save Screenshot `Cmd+Shift+S` — captures current window to PNG.
+  - Save Screenshot `Cmd+Shift+S` - captures current window to PNG.
 
 - Text viewer (UTF‑8)
   - Dropping or opening `.txt/.md/.log/.nfo/.asc` renders via a minimal HTML wrapper with monospace fonts and Unicode symbol fallbacks (fixes mojibake for block art).
