@@ -91,6 +91,23 @@ A transparent, borderless browser overlay built with Electron.
   - `Shift+F11` - Centered overscan (push site UI offscreen)
   - Hold `Opt+Shift` and drag anywhere to move the window (frameless helper)
 
+### Preferences and Startup
+
+- Preferences (macOS app menu):
+  - Set Startup File / Set Startup Folder: load this on launch (folders resolve to `index.html` or the first `.html`).
+  - Startup Mode: Normal, Fullscreen, Fill Screen, Overscan Center.
+  - Target Display: choose which monitor new windows should default to; startup will try to use it (falls back to primary if unavailable).
+  - Hide Cursor at Startup: hide the cursor in the first window on launch (per-window toggling available via View → Hide Cursor).
+  - Open/Reveal Settings File: opens `settings.json` for inspection.
+
+- Settings file location (per user):
+  - macOS: `~/Library/Application Support/cloudywindow/settings.json`
+  - Windows: `%APPDATA%/cloudywindow/settings.json`
+  - Linux: `~/.config/cloudywindow/settings.json`
+
+- Window menu:
+  - Move This Window To → [Display]: quickly centers the current window on a specific monitor.
+
 Transparency safety toggles (in app):
 - View → Developer → Transparent or Near Transparent window background
 - View → Developer → Canvas Safe Mode (disable Accelerated 2D)
