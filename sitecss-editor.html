@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudyWindow — Site CSS</title>
+  <style>
+    html, body { height: 100%; margin: 0; background: #1e1e1e; color: #eee; font-family: -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial; }
+    .toolbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #2a2a2a; border-bottom: 1px solid #333; }
+    .title { font-size: 13px; color: #ddd; }
+    .spacer { flex: 1; }
+    button { background: #3a3a3a; color: #eee; border: 1px solid #454545; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
+    button:hover { background: #464646; }
+    #editor { position: absolute; top: 40px; left: 0; right: 0; bottom: 28px; width: 100%; border: 0; outline: none; resize: none; background: #1b1b1b; color: #e8e8e8; padding: 12px; box-sizing: border-box; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; line-height: 1.5; }
+    #status { position: absolute; left: 0; right: 0; bottom: 0; height: 28px; display: flex; align-items: center; padding: 0 10px; background: #2a2a2a; border-top: 1px solid #333; font-size: 12px; color: #ccc; }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="title">Site CSS (site-css.json)</span>
+    <div class="spacer"></div>
+    <button id="btnPicker" title="Start DOM/CSS Picker">Start Picker</button>
+    <button id="btnCompact" title="Compact duplicate rules for host">Compact</button>
+    <button id="btnEnable" title="Enable rules for host">Enable Host</button>
+    <button id="btnDisable" title="Disable rules for host">Disable Host</button>
+    <button id="btnClear" title="Clear all rules (blank store)">Clear All</button>
+    <button id="btnFormat" title="Format JSON">Format</button>
+    <button id="btnReload" title="Reload from disk">Reload</button>
+    <button id="btnSave" title="Save to disk">Save</button>
+  </div>
+  <textarea id="editor" spellcheck="false"></textarea>
+  <div id="status">Ready</div>
+  <script src="./sitecss-editor.js"></script>
+</body>
+</html>

@@ -18,6 +18,8 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - [ + ] Site CSS injection (tldraw, Strudel transparency)
 - [ ~ ] Resize handles (frameless) - basic; polish later
 - [ + ] Multi‑window management (menu + _blank popups)
+- [ + ] Per‑site CSS (Store + Injection)
+- [ + ] Site CSS Editor window (JSON) + DOM/CSS Picker (auto‑zap + undo)
 - [ + ] Packaging (electron‑builder)
 
 ---
@@ -30,6 +32,9 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - Renderer: `renderer.js` handles navigation, DnD resolution, opacity controls, CSS injection, and optional hard flush
 - Main: menus, window management, and background alpha toggles
   - Popup routing: `app.on('web-contents-created')` → `contents.setWindowOpenHandler` intercepts `window.open` / `target=_blank` from webviews and creates a new frameless CloudyWindow (then sends `navigate-to`)
+  - Site CSS store in `userData/site-css.json` managed by `main/siteCssStore.js`; IPC for get/add/list/reload/read/write.
+  - Site CSS editor window: `sitecss-editor.html` + `sitecss-editor.js` (JSON edit, picker control)
+  - Picker pipeline: main (start/stop) → renderer (forward) → webview-preload (HUD, selector, auto‑zap) → renderer (result) → main (forward) → editor (insert rule)
 
 ---
 
@@ -49,6 +54,7 @@ This PRD is the single source of truth. See `docs/DEVLOG.md` for an ongoing log 
 - Hard flush content: `Cmd+Opt+F`
 - Apply transparency CSS (manual): `Cmd+Opt+T`
 - Window background alpha: View menu → Transparent (0%) or Near Transparent (1%)
+- Start DOM/CSS Picker: `Cmd+Opt+P` (This Window)
 
 ---
 
@@ -85,6 +91,6 @@ Acceptance criteria
 
 ## Roadmap (near‑term)
 
-- Per‑site CSS registry + enable/disable per site in UI
+- Per‑site CSS registry + enable/disable per site in UI (toggle in menu)
 - Polish resize handles and multi‑window UX
-- Optional “Zap CSS” tooling (record one‑off overrides per site)
+- Zap CSS picker improvements: multi‑select queue, preview panel, dim option; CodeMirror editor

@@ -12,6 +12,15 @@ const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
 const contentRoot = document.getElementById('content-root');
+const modDragOverlay = document.getElementById('mod-drag-overlay');
+// Site CSS editor overlay elements
+const siteCssOverlay = document.getElementById('sitecss-overlay');
+const siteCssEditor = document.getElementById('sitecss-editor');
+const siteCssStatus = document.getElementById('sitecss-status');
+const btnSiteCssSave = document.getElementById('sitecss-save');
+const btnSiteCssClose = document.getElementById('sitecss-close');
+const btnSiteCssFormat = document.getElementById('sitecss-format');
+const btnSiteCssReload = document.getElementById('sitecss-reload');
 // Pre‑draw flush toggle (persisted)
 let preDrawFlushEnabled = false;
 try { preDrawFlushEnabled = localStorage.getItem('preDrawFlushEnabled') === '1'; } catch (_) {}
@@ -61,72 +70,286 @@ function navigateToUrl(url) {
   console.log('navigateToUrl called with:', url);
   if (!url) return;
     let fullUrl = url;
-    if (!/^https?:\/\//i.test(url) && !url.startsWith('file://')) {
-        fullUrl = 'http://' + url;
+    // Treat absolute URLs including blob:/data:/file:/about: as already absolute
+    const isAbsolute = /^(https?:|file:|blob:|data:|about:)/i.test(url);
+    const isFile = /^file:/i.test(url);
+    const isBlob = /^blob:/i.test(url);
+    if (!isAbsolute) {
+      fullUrl = 'http://' + url;
     }
-    // Ensure webview has a valid absolute preload path
+    // Ensure webview has a valid absolute preload path (robust in packaged builds)
     try {
       const absPreload = window.electronAPI.getWebviewPreloadPath && window.electronAPI.getWebviewPreloadPath();
-      if (absPreload && !iframe.getAttribute('preload')) {
+      const curPreload = iframe.getAttribute('preload');
+      const looksAbsolute = !!curPreload && /^(file:|\/|[A-Za-z]:\\)/.test(curPreload);
+      if (absPreload && (!curPreload || !looksAbsolute)) {
         iframe.setAttribute('preload', absPreload);
       }
     } catch (_) {}
-    if (preDrawFlushEnabled) {
-      // Hide before navigation to prevent stale frames
-      iframe.style.display = 'none';
-      iframe.dataset.preflush = '1';
+    // Decide whether to hold reveal until dom-ready to reduce initial flicker
+    let holdMs = 0;
+    if (__pendingNavHoldMs) { holdMs = __pendingNavHoldMs; __pendingNavHoldMs = 0; }
+    else if (isFile || isBlob) {
+      holdMs = /\.(mp4|mov|m4v|webm|avi|pdf)$/i.test(String(fullUrl)) ? 700 : 350;
     }
-    if (typeof iframe.loadURL === 'function') {
-      iframe.loadURL(fullUrl);
-    } else {
-      iframe.src = fullUrl;
+    if (preDrawFlushEnabled) holdMs = Math.max(holdMs, 350);
+    if (holdMs > 0) beginNavHold(holdMs);
+    try {
+      if (isFile) {
+        // Setting src tends to be more reliable for local files in packaged apps
+        iframe.src = fullUrl;
+      } else if (typeof iframe.loadURL === 'function') {
+        iframe.loadURL(fullUrl);
+      } else {
+        iframe.src = fullUrl;
+      }
+    } catch (_) {
+      try { iframe.src = fullUrl; } catch (_) {}
     }
     urlInput.value = fullUrl;
 }
 
 function openLocalFile(filePath) {
     if (!filePath) return;
-    // Normalize possible file:// prefix
-    const fileUrl = filePath.startsWith('file://') ? filePath : 'file://' + filePath;
+    // Normalize and properly encode to a valid file:// URL (handles spaces, #, etc.)
+    let fileUrl = filePath;
+    try {
+      if (!String(filePath).startsWith('file://')) {
+        // new URL will percent-encode as needed
+        fileUrl = new URL('file://' + String(filePath)).toString();
+      }
+    } catch (_) {
+      // Fallback: minimal encode for common cases
+      fileUrl = 'file://' + String(filePath).replace(/ /g, '%20');
+    }
     navigateToUrl(fileUrl);
 }
 
-let dragCounter = 0;
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function openTextContentAsHtml(text, title) {
+  try {
+    const safe = escapeHtml(text || '');
+    const t = title ? String(title) : 'Text';
+    const html = `<!doctype html><meta charset="utf-8"><title>${t}</title>
+    <style>
+      html,body{margin:0;height:100%;background:transparent;color:rgba(255,255,255,0.92)}
+      pre{white-space:pre; margin:12px; font:13px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", monospace}
+    </style>
+    <pre>${safe}</pre>`;
+    const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    navigateToUrl(url);
+  } catch (_) {
+    // Fallback to plain text data URL
+    try { const url = 'data:text/plain;charset=utf-8,' + encodeURIComponent(String(text||'')); navigateToUrl(url); } catch (_) {}
+  }
+}
+
+let dragCounter = 0; // legacy counter, now supplemented with debounce
+let __overlayHideTimer = null;
+let __overlayHover = false;
+let __dropGuardActive = false;
+let __navHoldTimer = null;
+let __pendingNavHoldMs = 0;
+
+function requestNavHold(ms = 300) {
+  try { __pendingNavHoldMs = Math.max(__pendingNavHoldMs || 0, ms|0); } catch(_) {}
+}
+
+function beginNavHold(maxMs = 800) {
+  try {
+    if (!iframe) return;
+    iframe.style.display = 'none';
+    iframe.dataset.navhold = '1';
+    if (__navHoldTimer) { clearTimeout(__navHoldTimer); __navHoldTimer = null; }
+    __navHoldTimer = setTimeout(() => { endNavHold(); }, Math.max(300, maxMs));
+  } catch(_) {}
+}
+
+function endNavHold() {
+  try {
+    if (!iframe) return;
+    if (iframe.dataset.navhold === '1') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          iframe.style.display = '';
+          iframe.dataset.navhold = '0';
+        });
+      });
+    }
+    if (__navHoldTimer) { clearTimeout(__navHoldTimer); __navHoldTimer = null; }
+  } catch(_) {}
+}
 
 function showDropOverlay() {
   if (!dropOverlay) return;
+  __overlayHover = true;
+  if (__overlayHideTimer) { try { clearTimeout(__overlayHideTimer); } catch(_) {} __overlayHideTimer = null; }
   dropOverlay.classList.add('active');
+  // Ensure overlay receives the drop instead of the webview
+  try { if (iframe) iframe.style.pointerEvents = 'none'; } catch(_) {}
 }
 
 function hideDropOverlay() {
   dragCounter = 0;
   if (!dropOverlay) return;
   dropOverlay.classList.remove('active');
+  // Restore webview interactivity
+  try { if (iframe) iframe.style.pointerEvents = ''; } catch(_) {}
 }
 
-function handleFileDrop(event) {
+function debounceHideDropOverlay(ms = 150) {
+  __overlayHover = false;
+  if (__overlayHideTimer) { try { clearTimeout(__overlayHideTimer); } catch(_) {} }
+  __overlayHideTimer = setTimeout(() => {
+    if (!__overlayHover) hideDropOverlay();
+    __overlayHideTimer = null;
+  }, ms);
+}
+
+async function handleFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
+    // Guard to avoid duplicate handling from multiple listeners/targets
+    if (__dropGuardActive) {
+      try { console.log('[DnD] drop ignored due to guard'); } catch(_) {}
+      return;
+    }
+    __dropGuardActive = true;
+    setTimeout(() => { __dropGuardActive = false; }, 250);
     hideDropOverlay();
 
-    const files = event.dataTransfer?.files;
+    const dt = event.dataTransfer;
+    const files = dt?.files;
     if (files && files.length > 0) {
         const file = files[0];
-        const rawPath = file.path;
-        // Ask main to resolve directories (index.html) etc.
-        window.electronAPI.resolveOpenable(rawPath).then(resolved => {
-          if (resolved) {
-            openLocalFile(resolved);
-          } else {
-            // As a fallback, attempt to use file path directly
-            openLocalFile(rawPath);
+        const rawPath = file && file.path;
+        try { console.log('[DnD] file:', { name: file && file.name, type: file && file.type, size: file && file.size, hasPath: !!rawPath }); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:file', { name: file && file.name, type: file && file.type, size: file && file.size, rawPath }); } catch(_) {}
+
+        if (rawPath) {
+          // Special-case common text files to preserve UTF-8 Unicode art
+          try {
+            const lower = (file && file.name ? String(file.name).toLowerCase() : '') || String(rawPath).toLowerCase();
+            if (/(\.txt|\.md|\.log|\.nfo|\.asc)$/.test(lower) || (file && /^text\//i.test(file.type || ''))) {
+              const txt = await window.electronAPI.readTextFile(rawPath);
+              if (txt != null) { openTextContentAsHtml(txt, file && file.name); return; }
+            }
+          } catch (_) {}
+          // Ask main to resolve directories (index.html) etc.
+          window.electronAPI.resolveOpenable(rawPath).then(resolved => {
+            try { console.log('[DnD] resolved path:', resolved || '(null)'); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:resolved', { resolved }); } catch(_) {}
+            if (resolved) {
+              openLocalFile(resolved);
+            } else {
+              // Try direct path as a last resort
+              openLocalFile(rawPath);
+            }
+          });
+          return;
+        }
+
+        // No file.path (common for directories). Try to extract a file:// URI from any available flavor.
+        const typeCandidates = [
+          'public.file-url',
+          'text/uri-list',
+          'text/plain',
+          'text/x-moz-url',
+          'text/x-moz-url-data'
+        ];
+        // Also iterate over whatever the OS reports
+        const allTypes = Array.from(new Set([...(dt?.types ? Array.from(dt.types) : []), ...typeCandidates]));
+        for (const t of allTypes) {
+          let data = '';
+          try { data = dt.getData(t) || ''; } catch (_) { data = ''; }
+          const s = String(data).trim();
+          if (!s) continue;
+          // Some flavors contain multiple lines: first is URL
+          const first = s.split('\n')[0].trim();
+          if (/^file:/i.test(first)) {
+            try { console.log('[DnD] uri from', t, '→', first); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:uri-any', { t, uri: first }); } catch(_) {}
+            const resolved = await window.electronAPI.resolveOpenable(first);
+            if (resolved) openLocalFile(resolved); else openLocalFile(first);
+            return;
           }
-        });
-        return;
+        }
+
+        // If DataTransfer supports webkitGetAsEntry/isDirectory, import directory to a temp folder and open directly
+        try {
+          const items = event.dataTransfer && event.dataTransfer.items ? Array.from(event.dataTransfer.items) : [];
+          for (const it of items) {
+            const entry = it && (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null);
+            if (entry && entry.isDirectory) {
+              console.log('[DnD] directory dropped; importing…');
+              window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:dir-import', { name: file && file.name });
+              const collected = await collectDirectory(entry);
+              if (collected && collected.files && collected.files.length) {
+                const res = await window.electronAPI.tempfsImport({ rootName: collected.rootName, files: collected.files });
+                if (res && res.ok && res.index) { openLocalFile(res.index); return; }
+              }
+              return;
+            }
+          }
+        } catch (_) {}
+
+        // If the dropped object is a text file but no path exposed, read as UTF‑8 and render HTML wrapper
+        try {
+          const isTextLike = (file && ((/^text\//i.test(file.type || '')) || /\.(txt|md|log|nfo|asc)$/i.test(file.name || '')));
+          if (isTextLike && file && typeof file.text === 'function') {
+            const txt = await file.text();
+            openTextContentAsHtml(txt, file && file.name);
+            return;
+          }
+        } catch (_) {}
+
+        // Blob URL fallback (works well for images/PDF; HTML may miss relative assets)
+        try {
+          const blobUrl = URL.createObjectURL(file);
+          // Anticipate initial media flash; hold reveal a bit for video/PDF/images
+          try {
+            if (/^video\//i.test(file.type||'')) requestNavHold(700);
+            else if (/^image\//i.test(file.type||'')) requestNavHold(300);
+            else if (/pdf/i.test(file.type||'')) requestNavHold(600);
+          } catch(_) {}
+          try { console.log('[DnD] using blob URL fallback:', blobUrl); } catch(_) {}
+          try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:bloburl', { url: blobUrl, name: file && file.name, type: file && file.type, size: file && file.size }); } catch(_) {}
+          navigateToUrl(blobUrl);
+          return;
+        } catch (e) {
+          try { console.warn('[DnD] blob URL fallback failed:', e && e.message || e); } catch(_) {}
+        }
+        // If we reach here, continue to other fallbacks below
+    }
+
+    // Fallback: try DataTransfer.items for file entries
+    const items = event.dataTransfer?.items;
+    if (items && items.length > 0) {
+      for (const it of items) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile && it.getAsFile();
+          const p = f && (f.path || f.name);
+          if (p) {
+            try { console.log('[DnD] item file path:', p); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:item-file', { path: p }); } catch(_) {}
+            window.electronAPI.resolveOpenable(p).then(resolved => {
+              if (resolved) openLocalFile(resolved); else openLocalFile(p);
+            });
+            return;
+          }
+        }
+      }
     }
 
     // Check for URI list (file:/// or http(s) URLs)
-    const uriList = event.dataTransfer.getData('text/uri-list');
+    let uriList = '';
+    try { uriList = event.dataTransfer.getData('text/uri-list'); } catch(_) {}
+    if (!uriList) {
+      try { uriList = event.dataTransfer.getData('public.file-url'); } catch(_) {}
+    }
     if (uriList) {
         const first = uriList.split('\n')[0].trim();
         if (first.startsWith('file://')) {
@@ -136,12 +359,16 @@ function handleFileDrop(event) {
           });
           return;
         }
+        try { console.log('[DnD] uri-list:', first); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:uri', { uri: first }); } catch(_) {}
         return navigateToUrl(first);
     }
 
     // Check for plain text
     const text = event.dataTransfer.getData('text/plain');
     if (text) {
+        try { console.log('[DnD] text:', text.slice(0, 200)); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:text', { text: text.slice(0, 200) }); } catch(_) {}
         try {
             new URL(text);
             navigateToUrl(text);
@@ -151,7 +378,11 @@ function handleFileDrop(event) {
               if (resolved) openLocalFile(resolved); else openLocalFile(text);
             });
         }
+        return;
     }
+
+    try { console.warn('[DnD] No openable content found on drop. types=', event.dataTransfer && event.dataTransfer.types); } catch(_) {}
+    try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:none', { types: (event.dataTransfer && event.dataTransfer.types) || [] }); } catch(_) {}
 }
 
 function toggleUI() {
@@ -164,6 +395,64 @@ function toggleUI() {
   }
   // Hard flush to prevent afterimages
   hardFlushWebview();
+}
+
+// ---------- Site CSS Editor Overlay ----------
+async function openSiteCssEditor() {
+  try {
+    if (!siteCssOverlay) return;
+    let text = '';
+    try { text = await window.electronAPI.siteCssRead(); } catch (_) {}
+    if (typeof text !== 'string') text = '';
+    siteCssEditor.value = text;
+    siteCssStatus.textContent = 'Loaded';
+    siteCssOverlay.classList.add('active');
+  } catch (_) {}
+}
+
+async function saveSiteCssEditor() {
+  try {
+    if (!siteCssOverlay) return;
+    const raw = siteCssEditor.value;
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch (err) { siteCssStatus.textContent = 'Invalid JSON: ' + (err && err.message || err); return; }
+    const pretty = JSON.stringify(parsed, null, 2);
+    const res = await window.electronAPI.siteCssWrite(pretty);
+    if (res && res.ok) {
+      siteCssStatus.textContent = 'Saved';
+      try { await window.electronAPI.siteCssReload(); } catch (_) {}
+    } else {
+      siteCssStatus.textContent = 'Save failed: ' + (res && res.error ? res.error : 'unknown error');
+    }
+  } catch (e) {
+    siteCssStatus.textContent = 'Error: ' + (e && e.message || e);
+  }
+}
+
+function closeSiteCssEditor() {
+  if (!siteCssOverlay) return;
+  siteCssOverlay.classList.remove('active');
+}
+
+function formatSiteCssEditor() {
+  try {
+    const raw = siteCssEditor.value;
+    const parsed = JSON.parse(raw);
+    siteCssEditor.value = JSON.stringify(parsed, null, 2);
+    siteCssStatus.textContent = 'Formatted';
+  } catch (e) {
+    siteCssStatus.textContent = 'Format error: ' + (e && e.message || e);
+  }
+}
+
+async function reloadSiteCssEditor() {
+  try {
+    const text = await window.electronAPI.siteCssRead();
+    siteCssEditor.value = typeof text === 'string' ? text : '';
+    siteCssStatus.textContent = 'Reloaded';
+  } catch (e) {
+    siteCssStatus.textContent = 'Reload error: ' + (e && e.message || e);
+  }
 }
 
 function setupResizeHandlers() {
@@ -334,20 +623,24 @@ toggleUiButton.addEventListener('click', () => {
     toggleUI();
 });
 
+// Overlay buttons
+if (btnSiteCssSave) btnSiteCssSave.addEventListener('click', saveSiteCssEditor);
+if (btnSiteCssClose) btnSiteCssClose.addEventListener('click', closeSiteCssEditor);
+if (btnSiteCssFormat) btnSiteCssFormat.addEventListener('click', formatSiteCssEditor);
+if (btnSiteCssReload) btnSiteCssReload.addEventListener('click', reloadSiteCssEditor);
+
 // Global drag handling (document and iframe) with overlay above the iframe
 ['dragenter','dragover'].forEach(type => {
   document.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-    if (type === 'dragenter') dragCounter++;
     showDropOverlay();
   });
   iframe.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-    if (type === 'dragenter') dragCounter++;
     showDropOverlay();
   });
 });
@@ -356,25 +649,81 @@ toggleUiButton.addEventListener('click', () => {
   document.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
-    dragCounter = Math.max(0, dragCounter - 1);
-    if (dragCounter === 0) hideDropOverlay();
+    debounceHideDropOverlay(160);
   });
   iframe.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
-    dragCounter = Math.max(0, dragCounter - 1);
-    if (dragCounter === 0) hideDropOverlay();
+    debounceHideDropOverlay(160);
   });
 });
 
 document.addEventListener('dragend', () => hideDropOverlay());
 
+// Use overlay-first handling; document fallback (bubble phase) only
 document.addEventListener('drop', handleFileDrop);
 iframe.addEventListener('drop', handleFileDrop);
+
+// Also react to host key states (when webview isn't focused)
+window.addEventListener('keydown', (e) => {
+  try {
+    if (e && e.altKey && e.shiftKey && !dropOverlay.classList.contains('active')) modDragOverlay.classList.add('active');
+  } catch(_) {}
+}, true);
+window.addEventListener('keyup', (e) => {
+  try {
+    if (!e || !e.altKey || !e.shiftKey) modDragOverlay.classList.remove('active');
+  } catch(_) {}
+}, true);
+window.addEventListener('blur', () => { try { modDragOverlay.classList.remove('active'); } catch(_) {} }, true);
+
+// Helpers to enumerate a dropped directory via webkit entries and build a payload for temp import
+async function collectDirectory(dirEntry) {
+  const rootName = String(dirEntry && dirEntry.name || 'drop');
+  async function readEntries(directoryEntry) {
+    const reader = directoryEntry.createReader();
+    const out = [];
+    while (true) {
+      const batch = await new Promise((resolve) => reader.readEntries(resolve));
+      if (!batch || batch.length === 0) break;
+      out.push(...batch);
+    }
+    return out;
+  }
+  async function walk(entry, prefix = '') {
+    if (!entry) return [];
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      const u8 = new Uint8Array(await file.arrayBuffer());
+      const rel = (prefix ? prefix + '/' : '') + (file.name || entry.name || 'file');
+      // Pass raw bytes (ArrayBuffer) to main; it will write them to temp
+      return [{ path: rel, name: file.name, data: u8 }];
+    }
+    if (entry.isDirectory) {
+      const children = await readEntries(entry);
+      let acc = [];
+      for (const child of children) {
+        const childRel = (prefix ? prefix + '/' : '') + (entry.name || '');
+        const arr = await walk(child, childRel);
+        acc = acc.concat(arr);
+      }
+      return acc;
+    }
+    return [];
+  }
+  try {
+    const files = await walk(dirEntry, '');
+    return { rootName, files };
+  } catch (e) {
+    try { console.warn('collectDirectory failed', e && e.message || e); } catch(_) {}
+    return null;
+  }
+}
 if (dropOverlay) {
   dropOverlay.addEventListener('dragover', (e) => {
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    __overlayHover = true; // keep alive while hovering overlay
   });
   dropOverlay.addEventListener('drop', handleFileDrop);
 }
@@ -394,8 +743,15 @@ if (window.electronAPI.onNavigateTo) {
   });
 }
 
-window.electronAPI.onFileSelected((event, filePath) => {
-    openLocalFile(filePath);
+window.electronAPI.onFileSelected(async (event, filePath) => {
+  try {
+    const lower = String(filePath || '').toLowerCase();
+    if (/(\.txt|\.md|\.log|\.nfo|\.asc)$/.test(lower)) {
+      const txt = await window.electronAPI.readTextFile(filePath);
+      if (txt != null) { openTextContentAsHtml(txt, lower.split('/').pop()); return; }
+    }
+  } catch (_) {}
+  openLocalFile(filePath);
 });
 
 window.electronAPI.onOpenFileShortcut(() => {
@@ -494,6 +850,44 @@ window.electronAPI.onWindowBgAlpha && window.electronAPI.onWindowBgAlpha((_e, a)
   flushOnOpacityChange = (Number(a) === 0);
 });
 
+// Open Site CSS editor on command from menu
+window.electronAPI.onOpenSiteCssEditor && window.electronAPI.onOpenSiteCssEditor(() => {
+  openSiteCssEditor();
+});
+
+// Relay picker start/stop from main to the webview and add host-side key fallback
+let __hostPickerActive = false;
+function hostPickerKeyHandler(e) {
+  if (!__hostPickerActive) return;
+  // Ignore keys originating from host UI or editable inputs
+  try {
+    const t = e && e.target;
+    if (t) {
+      const tag = (t.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (t.isContentEditable) return;
+      if (typeof t.closest === 'function') {
+        if (t.closest('#ui-container') || t.closest('#sitecss-overlay')) return;
+      }
+    }
+  } catch (_) {}
+  const k = e.key;
+  try {
+    if (k === 'Escape') { iframe && iframe.send && iframe.send('zap-css-cancel'); e.preventDefault(); }
+    else if (k === 'Enter') { iframe && iframe.send && iframe.send('zap-css-commit'); e.preventDefault(); }
+  } catch (_) {}
+}
+window.electronAPI.onZapCssStart && window.electronAPI.onZapCssStart(() => {
+  try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-start'); } catch (_) {}
+  __hostPickerActive = true;
+  try { window.addEventListener('keydown', hostPickerKeyHandler, true); } catch(_) {}
+});
+window.electronAPI.onZapCssStop && window.electronAPI.onZapCssStop(() => {
+  try { iframe && typeof iframe.send === 'function' && iframe.send('zap-css-stop'); } catch (_) {}
+  __hostPickerActive = false;
+  try { window.removeEventListener('keydown', hostPickerKeyHandler, true); } catch(_) {}
+});
+
 let flushTimer = null;
 function scheduleFlush(delay = 100) {
   if (!flushOnOpacityChange) return; // skip if near‑transparent alpha is active
@@ -545,6 +939,23 @@ function injectSiteCSS(url) {
     try { iframe.insertCSS(css); } catch (_) {}
   }
 
+  // P5LIVE (teddavis.org/p5live or p5live.org): clear app shell backgrounds
+  if (u.includes('p5live')) {
+    const css = `
+      html, body, #loader-bg, #menu, .menu-bg, .menu-section-bg, .menu-header, #menu-switch, #ref-bg, .panel, #panel-menu, #panel-settings, #p5-editor, #p5-frame, #p5-frame-cover {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+      #loader-bg { opacity: 0 !important; pointer-events: none !important; }
+      /* Ace editor surfaces */
+      .ace_scroller, .ace_content, .ace_gutter, .ace_marker-layer .ace_active-line, .ace_line_bg {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+    `;
+    try { iframe.insertCSS(css); } catch (_) {}
+  }
+
   // Strudel (strudel.cc / tidal strudel): try to make background transparent
   if (u.includes('strudel')) {
     const css = `
@@ -576,11 +987,35 @@ function injectSiteCSS(url) {
   // Optional generic pass (safer to use on-demand via shortcut)
 }
 
+// Make built-in document viewers (images, PDFs, blobs) transparent
+function injectDocViewerTransparency(url) {
+  if (!iframe || typeof iframe.insertCSS !== 'function') return;
+  const u = String(url || '').toLowerCase();
+  const isSpecial = /^(file:|blob:|data:)/.test(u);
+  if (!isSpecial) return;
+  const css = `
+    /* Clear default dark backdrops in Chromium viewers */
+    html, body { background: transparent !important; }
+    img, video, canvas, svg, embed, object { background: transparent !important; }
+    /* Plain text viewer: enforce monospaced font + visible color for ASCII/Unicode art */
+    body, pre { color: rgba(255,255,255,0.92) !important; }
+    pre, body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Symbols 2", "Segoe UI Symbol", monospace !important; }
+    pre { white-space: pre; font-size: 13px; line-height: 1.2; }
+    /* PDF viewer common containers */
+    #viewer, #viewerContainer, .viewer, .page, .pdfViewer, .pdfCanvas, viewer-toolbar, .toolbar,
+    .toolbarContainer, .hiddenSmallView, .hiddenLargeView, .secondaryToolbar, .findbar,
+    .viewerContainer, pdf-viewer, #toolbar, #sidebarContainer, #sidebarContent, #thumbnailView {
+      background: transparent !important;
+    }
+  `;
+  try { iframe.insertCSS(css); } catch (_) {}
+}
+
 // Install a guest-page MutationObserver to keep clearing background styles that are reapplied dynamically
 function installTransparencyGuard(url) {
   if (!iframe || typeof iframe.executeJavaScript !== 'function') return;
   const u = (url || '').toLowerCase();
-  if (!(u.includes('tldraw') || u.includes('unit.moe'))) return;
+  if (!(u.includes('tldraw') || u.includes('unit.moe') || u.includes('p5live'))) return;
   const script = `(() => {
     try {
       if (window.__cloudy_transparency_guard_installed) return;
@@ -599,7 +1034,11 @@ function installTransparencyGuard(url) {
             '.tlui','.tlui__editor','.tlui__container','.tlui__page','.tlui__panel',
             '.tldraw','.tldraw__editor','.tl','.tl-theme',
             '.app','.App','.container','.content','.editor','.workspace','.canvas',
-            "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]"
+            "[class*=\\"app\\"]","[class*=\\"container\\"]","[class*=\\"editor\\"]","[class*=\\"canvas\\"]",
+            /* P5LIVE-specific shells */
+            '#loader','#loader-bg','#menu','.menu-bg','.menu-section-bg','.menu-header','#menu-switch','#ref-bg',
+            '.panel','#panel-menu','#panel-settings','#p5-editor','#p5-frame','#p5-frame-cover',
+            '.ace_scroller','.ace_content','.ace_gutter','.ace_marker-layer .ace_active-line','.ace_line_bg'
           ];
           const nodes = document.querySelectorAll(sels.join(','));
           nodes.forEach(el => {
@@ -631,6 +1070,29 @@ function injectGenericTransparency() {
   try { iframe.insertCSS(css); } catch (_) {}
 }
 
+// User-defined per-site CSS from the central store (M1)
+let lastUserCssSig = '';
+async function applyUserSiteCSS(currentUrl) {
+  try {
+    if (!iframe || typeof iframe.insertCSS !== 'function') return;
+    if (!window.electronAPI || typeof window.electronAPI.siteCssGetMatching !== 'function') return;
+    const cssList = await window.electronAPI.siteCssGetMatching(currentUrl || '');
+    if (!cssList || cssList.length === 0) { lastUserCssSig = ''; return; }
+    // Ensure display:none rules come last
+    const sorted = cssList.slice().sort((a,b)=>{
+      const ad = /display\s*:\s*none/i.test(a);
+      const bd = /display\s*:\s*none/i.test(b);
+      return ad === bd ? 0 : (ad ? 1 : -1);
+    });
+    const sig = (currentUrl || '') + '::' + sorted.join('||');
+    if (sig === lastUserCssSig) return; // avoid re-inserting identical CSS
+    lastUserCssSig = sig;
+    for (const css of sorted) {
+      try { if (css && typeof css === 'string' && css.trim()) { iframe.insertCSS(css); } } catch (_) {}
+    }
+  } catch (_) {}
+}
+
 if (iframe) {
   iframe.addEventListener('dom-ready', () => {
     let currentUrl = '';
@@ -641,6 +1103,8 @@ if (iframe) {
       if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
     } catch (_) {}
     injectSiteCSS(currentUrl || '');
+    injectDocViewerTransparency(currentUrl || '');
+    applyUserSiteCSS(currentUrl || '');
     // Show after content is ready if we hid before navigation
     if (iframe.dataset.preflush === '1') {
       requestAnimationFrame(() => {
@@ -650,25 +1114,37 @@ if (iframe) {
         });
       });
     }
+    // Also end any automatic nav hold
+    endNavHold();
   });
   iframe.addEventListener('did-fail-load', (e) => {
     console.warn('Content failed to load', e.errorCode, e.errorDescription, e.validatedURL);
+    endNavHold();
   });
   iframe.addEventListener('did-navigate', (_e) => {
     // Update URL bar with current location
     try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
     // Reapply site CSS on full navigations
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
   // Reapply site CSS on in-page navigations (SPA route changes)
   iframe.addEventListener('did-navigate-in-page', (_e) => {
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
+
+  // When loading stops, reveal if still holding
+  iframe.addEventListener('did-stop-loading', () => { endNavHold(); });
 
 
   // Manual transparency shortcut handler
   window.electronAPI.onApplyTransparencyCSS && window.electronAPI.onApplyTransparencyCSS(() => {
     try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); } catch (_) {}
+    injectGenericTransparency();
+  });
+
+  // Force P5LIVE-specific transparency injection regardless of the current URL
+  window.electronAPI.onForceP5LiveTransparency && window.electronAPI.onForceP5LiveTransparency(() => {
+    try { injectSiteCSS('https://p5live.local/'); installTransparencyGuard('https://p5live.local/'); } catch (_) {}
     injectGenericTransparency();
   });
   // Bridge DnD events coming from the guest page via preload
@@ -681,8 +1157,11 @@ if (iframe) {
     } else if (event.channel === 'wv-drop') {
       hideDropOverlay();
       const payload = event.args && event.args[0] ? event.args[0] : {};
+      try { console.log('[DnD/wv] drop payload:', payload); } catch(_) {}
+      try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-drop', { payload }); } catch(_) {}
       if (payload.files && payload.files.length > 0) {
         const p = payload.files[0];
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-file', { p }); } catch(_) {}
         window.electronAPI.resolveOpenable(p).then(resolved => {
           if (resolved) openLocalFile(resolved); else openLocalFile(p);
         });
@@ -690,6 +1169,7 @@ if (iframe) {
       }
       const uri = payload.uriList ? String(payload.uriList).split('\n')[0].trim() : '';
       if (uri) {
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-uri', { uri }); } catch(_) {}
         if (uri.startsWith('file://')) {
           window.electronAPI.resolveOpenable(uri).then(resolved => {
             if (resolved) openLocalFile(resolved); else openLocalFile(uri);
@@ -701,6 +1181,7 @@ if (iframe) {
       }
       const text = payload.text || '';
       if (text) {
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-text', { text: text.slice(0,200) }); } catch(_) {}
         try { new URL(text); navigateToUrl(text); }
         catch (_) {
           window.electronAPI.resolveOpenable(text).then(resolved => {
@@ -708,6 +1189,39 @@ if (iframe) {
           });
         }
       }
+    } else if (event.channel === 'wv-debug') {
+      const payload = event.args && event.args[0] ? event.args[0] : {};
+      try { console.log('[WV/debug]', payload); } catch(_) {}
+      try { window.electronAPI.debugLog && window.electronAPI.debugLog('wv:debug', payload); } catch(_) {}
+    } else if (event.channel === 'mod-drag:on') {
+      try { if (!dropOverlay.classList.contains('active')) modDragOverlay.classList.add('active'); } catch(_) {}
+    } else if (event.channel === 'mod-drag:off') {
+      try { modDragOverlay.classList.remove('active'); } catch(_) {}
+    } else if (event.channel === 'zap-css-picked') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (payload && window.electronAPI && typeof window.electronAPI.siteCssPickerResult === 'function') {
+          window.electronAPI.siteCssPickerResult(payload);
+        }
+      } catch (_) {}
+    } else if (event.channel === 'zap-css-cancelled') {
+      // no-op
+    } else if (event.channel === 'zap-css-auto') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (window.electronAPI && typeof window.electronAPI.siteCssAutoAdd === 'function') {
+          window.electronAPI.siteCssAutoAdd(payload);
+        }
+      } catch (_) {}
+    } else if (event.channel === 'zap-css-undo') {
+      try { if (window.electronAPI && typeof window.electronAPI.siteCssAutoUndo === 'function') window.electronAPI.siteCssAutoUndo(); } catch (_) {}
+    } else if (event.channel === 'zap-css-reset') {
+      try {
+        const payload = event.args && event.args[0] ? event.args[0] : {};
+        if (payload && payload.host && window.electronAPI && typeof window.electronAPI.siteCssResetHost === 'function') {
+          window.electronAPI.siteCssResetHost(payload.host);
+        }
+      } catch (_) {}
     }
   });
 }

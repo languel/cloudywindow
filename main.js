@@ -1,6 +1,34 @@
 const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu, session, systemPreferences } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const siteCssStore = require('./main/siteCssStore');
+const os = require('os');
+
+let siteCssEditorWindow = null; // dedicated editor window
+let lastContentWin = null; // last focused CloudyWindow (content)
+
+function openSiteCssEditorWindow() {
+  if (siteCssEditorWindow && !siteCssEditorWindow.isDestroyed()) {
+    siteCssEditorWindow.focus();
+    return siteCssEditorWindow;
+  }
+  siteCssEditorWindow = new BrowserWindow({
+    width: 800,
+    height: 640,
+    title: 'CloudyWindow — Site CSS',
+    backgroundColor: '#1e1e1e',
+    frame: true,
+    transparent: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    }
+  });
+  siteCssEditorWindow.on('closed', () => { siteCssEditorWindow = null; });
+  siteCssEditorWindow.loadFile('sitecss-editor.html');
+  return siteCssEditorWindow;
+}
 
 let windows = new Set(); // Track all windows
 let mainWindow; // The initial window
@@ -8,6 +36,8 @@ let appIcon = null; // Generated emoji icon
 
 // Allow autoplay without gesture (audio in webviews)
 try { app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required'); } catch {}
+// Improve local file handling for webview file:// content (e.g., images, PDFs, HTML with relative assets)
+try { app.commandLine.appendSwitch('allow-file-access-from-files'); } catch {}
 
 async function generateEmojiIcon(emoji = '🌦️', size = 256) {
   // Create an offscreen window to render the emoji and capture as an image
@@ -76,6 +106,7 @@ function createWindow() {
 
   newWindow.on('focus', () => {
     // Rebuild menu so checkboxes reflect this window's state
+    lastContentWin = newWindow;
     updateWindowMenu();
   });
 
@@ -243,6 +274,22 @@ function positionWindowInQuadrant(win, quadrant) {
 function createMenu() {
   const isMac = process.platform === 'darwin';
   const focusedWin = BrowserWindow.getFocusedWindow();
+  const openSiteCssEditorWindow = () => {
+    const win = new BrowserWindow({
+      width: 800,
+      height: 640,
+      title: 'CloudyWindow — Site CSS',
+      backgroundColor: '#1e1e1e',
+      frame: true,
+      transparent: false,
+      webPreferences: {
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    });
+    win.loadFile('sitecss-editor.html');
+  };
   const template = [
     // App menu (macOS only)
     ...(isMac ? [{
@@ -264,12 +311,21 @@ function createMenu() {
       submenu: [
         {
           label: 'New Window',
-          accelerator: 'CmdOrCtrl+Alt+N',
+          accelerator: 'CmdOrCtrl+N',
           click: () => { createWindow(); }
         },
         {
+          label: 'New Fullscreen Window',
+          accelerator: 'CmdOrCtrl+Alt+N',
+          click: () => {
+            const win = createWindow();
+            // After creation, fill work area (same as Shift+F5)
+            try { positionWindowInQuadrant(win, 'full-screen'); } catch(_) {}
+          }
+        },
+        {
           label: 'Open File...',
-          accelerator: 'CmdOrCtrl+Alt+O',
+          accelerator: 'CmdOrCtrl+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-file-shortcut');
@@ -277,10 +333,33 @@ function createMenu() {
         },
         {
           label: 'Open Folder...',
-          accelerator: 'Alt+Shift+O',
+          accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-folder-shortcut');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Save Screenshot…',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: async () => {
+            try {
+              const win = BrowserWindow.getFocusedWindow();
+              if (!win) return;
+              const image = await win.capturePage();
+              const ts = new Date();
+              const pad = (n)=>String(n).padStart(2,'0');
+              const name = `cloudy-screenshot-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.png`;
+              const defaultDir = app.getPath('pictures') || app.getPath('documents') || app.getPath('downloads');
+              const { canceled, filePath } = await dialog.showSaveDialog(win, {
+                title: 'Save Screenshot',
+                defaultPath: require('path').join(defaultDir, name),
+                filters: [{ name: 'PNG Image', extensions: ['png'] }]
+              });
+              if (canceled || !filePath) return;
+              require('fs').writeFileSync(filePath, image.toPNG());
+            } catch (_) {}
           }
         },
         { type: 'separator' },
@@ -411,7 +490,7 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Opt+Shift+[)',
+              label: 'Decrease',
               accelerator: 'Alt+Shift+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -419,7 +498,7 @@ function createMenu() {
               }
             },
             {
-              label: 'Increase (Opt+Shift+])',
+              label: 'Increase',
               accelerator: 'Alt+Shift+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -457,7 +536,7 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Cmd+Opt+[)',
+              label: 'Decrease',
               accelerator: 'CmdOrCtrl+Alt+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -465,7 +544,7 @@ function createMenu() {
               }
             },
             {
-              label: 'Increase (Cmd+Opt+])',
+              label: 'Increase',
               accelerator: 'CmdOrCtrl+Alt+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -503,11 +582,42 @@ function createMenu() {
           label: 'Developer',
           submenu: [
             {
+              label: 'Start DOM/CSS Picker (This Window)',
+              accelerator: 'CmdOrCtrl+Alt+P',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                const target = (win && siteCssEditorWindow && win.id === siteCssEditorWindow.id)
+                  ? (lastContentWin || mainWindow || BrowserWindow.getAllWindows().find(w => w !== siteCssEditorWindow))
+                  : win;
+                if (target) { target.webContents.send('zap-css-start'); try { target.focus(); } catch (_) {} }
+              }
+            },
+            { type: 'separator' },
+            {
+              label: 'Clear All Site CSS Rules',
+              click: () => {
+                try {
+                  const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+                  fs.mkdirSync(path.dirname(p), { recursive: true });
+                  fs.writeFileSync(p, JSON.stringify({version:1,rules:[]},null,2));
+                  siteCssStore.reload();
+                } catch(_) {}
+              }
+            },
+            {
               label: 'Apply Transparency CSS',
               accelerator: 'CmdOrCtrl+Alt+T',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('apply-transparency-css');
+              }
+            },
+            {
+              label: 'Force P5LIVE Transparency (This Window)',
+              accelerator: 'CmdOrCtrl+Alt+Shift+T',
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) win.webContents.send('force-p5live-transparency');
               }
             },
             {
@@ -517,6 +627,34 @@ function createMenu() {
                 const win = BrowserWindow.getFocusedWindow();
                 if (win) win.webContents.send('hard-flush');
               }
+            },
+            { type: 'separator' },
+            {
+              label: 'Site CSS',
+              submenu: [
+                { label: 'Enable for Current Host', click: async () => { try { const win = BrowserWindow.getFocusedWindow() || lastContentWin || mainWindow; if (!win) return; const host = await win.webContents.executeJavaScript(`(()=>{try{const w=document.getElementById('content-frame');if(!w) return '';const u=(w.getURL?w.getURL():w.src)||'';return u?new URL(u).hostname:'';}catch(_){return ''}})()`); if (!host) return; const rules = siteCssStore.list(); rules.forEach(r => { const h=(r.match&&r.match.host||'').toLowerCase(); if (h===host.toLowerCase()) siteCssStore.update(r.id,{enabled:true}); }); } catch(_) {} } },
+                { label: 'Disable for Current Host', click: async () => { try { const win = BrowserWindow.getFocusedWindow() || lastContentWin || mainWindow; if (!win) return; const host = await win.webContents.executeJavaScript(`(()=>{try{const w=document.getElementById('content-frame');if(!w) return '';const u=(w.getURL?w.getURL():w.src)||'';return u?new URL(u).hostname:'';}catch(_){return ''}})()`); if (!host) return; const rules = siteCssStore.list(); rules.forEach(r => { const h=(r.match&&r.match.host||'').toLowerCase(); if (h===host.toLowerCase()) siteCssStore.update(r.id,{enabled:false}); }); } catch(_) {} } },
+                { type: 'separator' },
+                {
+                  label: 'Edit In-App…',
+                  click: () => { openSiteCssEditorWindow(); }
+                },
+                {
+                  label: 'Open Externally…',
+                  click: async () => {
+                    try {
+                      try { siteCssStore.reload(); } catch (_) {}
+                      const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+                      const { shell } = require('electron');
+                      await shell.openPath(p);
+                    } catch (_) {}
+                  }
+                },
+                {
+                  label: 'Reload Rules',
+                  click: () => { try { siteCssStore.reload(); } catch (_) {} }
+                }
+              ]
             },
             { type: 'separator' },
             {
@@ -800,6 +938,27 @@ app.whenReady().then(async () => {
       if (contents && contents.getType && contents.getType() === 'webview') {
         contents.setWindowOpenHandler((details) => {
           const url = details && details.url ? details.url : '';
+          // Allow blob/data/about:blank popups so they retain the opener's
+          // execution context (needed for blob: URLs like p5live's split view).
+          // Make these popup windows match main CloudyWindow style: frameless + transparent.
+          if (!url || url === 'about:blank' || url.startsWith('blob:') || url.startsWith('data:')) {
+            return {
+              action: 'allow',
+              overrideBrowserWindowOptions: {
+                width: 800,
+                height: 600,
+                transparent: true,
+                frame: false,
+                hasShadow: false,
+                backgroundColor: '#00000001',
+                webPreferences: {
+                  contextIsolation: true,
+                  nodeIntegration: false,
+                  preload: path.join(__dirname, 'popup-preload.js')
+                }
+              }
+            };
+          }
           if (url && url !== 'about:blank') {
             try {
               const win = createWindow();
@@ -808,9 +967,22 @@ app.whenReady().then(async () => {
               });
             } catch (_) {}
           }
-          // Always deny default popup; we handle it ourselves
+          // Always deny default popup for http/https; we handled it above
           return { action: 'deny' };
         });
+
+        // When a popup is created (allowed above), inject a minimal transparency CSS fallback
+        try {
+          contents.on('did-create-window', (child, _details) => {
+            try {
+              child.webContents.on('dom-ready', () => {
+                try {
+                  child.webContents.insertCSS('html,body,video,canvas{background:transparent!important;background-color:transparent!important}');
+                } catch (_) {}
+              });
+            } catch (_) {}
+          });
+        } catch (_) {}
       }
     } catch (_) {}
   });
@@ -844,6 +1016,71 @@ app.whenReady().then(async () => {
   // Removed global Alt+M (menu accelerator provides the shortcut and shows it visibly)
 });
 
+// Lightweight debug logger: writes JSON lines to userData/cloudywindow.log
+const { ipcMain: __ipcMainForDebug } = require('electron');
+__ipcMainForDebug.handle('debug:log', (_event, payload) => {
+  try {
+    const logDir = app.getPath('userData');
+    const logPath = path.join(logDir, 'cloudywindow.log');
+    const line = JSON.stringify({ t: new Date().toISOString(), p: payload }, null, 0) + os.EOL;
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(logPath, line, 'utf8');
+    return true;
+  } catch (_) {
+    return false;
+  }
+});
+
+// Read a local text file (UTF-8). Accepts file:// URL or absolute path
+ipcMain.handle('fs:read-text', async (_e, p) => {
+  try {
+    if (!p) return null;
+    let f = String(p);
+    if (f.startsWith('file://')) {
+      try { f = new URL(f).pathname; } catch (_) {}
+    }
+    if (!fs.existsSync(f)) return null;
+    const buf = fs.readFileSync(f);
+    return buf.toString('utf8');
+  } catch (_) { return null; }
+});
+
+// Import a dropped directory (no real path exposed) into a temp folder and return index path
+ipcMain.handle('tempfs:import', async (_e, payload) => {
+  try {
+    const root = (payload && payload.rootName) ? String(payload.rootName) : 'drop';
+    const files = Array.isArray(payload && payload.files) ? payload.files : [];
+    if (!files.length) return { ok: false, error: 'no files' };
+    const os = require('os');
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudy-drop-'));
+    const base = path.join(tmpRoot, root);
+    fs.mkdirSync(base, { recursive: true });
+    for (const f of files) {
+      const rel = String(f.path || f.name || '');
+      if (!rel) continue;
+      const dest = path.join(base, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      let buf;
+      if (Buffer.isBuffer(f.data)) buf = f.data;
+      else if (f.data && f.data.type === 'Buffer' && Array.isArray(f.data.data)) buf = Buffer.from(f.data.data);
+      else if (f.data && f.data.buffer) buf = Buffer.from(f.data.buffer);
+      else if (f.data && ArrayBuffer.isView(f.data)) buf = Buffer.from(f.data.buffer);
+      else if (typeof f.data === 'string') buf = Buffer.from(f.data, 'base64');
+      else buf = Buffer.from([]);
+      fs.writeFileSync(dest, buf);
+    }
+    // Choose an index file
+    let indexRel = 'index.html';
+    const candidates = ['index.html','index.htm'];
+    const found = files.map(f => String(f.path||f.name||'')).find(r => candidates.includes(path.basename(r).toLowerCase()));
+    if (found) indexRel = found;
+    const indexAbs = path.join(base, indexRel);
+    return { ok: true, index: indexAbs };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
 // Move IPC handlers outside of createWindow to avoid registering them multiple times
 // Handle file opening - use event.sender to reply to the correct window
 ipcMain.on('open-file', async (event) => {
@@ -851,10 +1088,7 @@ ipcMain.on('open-file', async (event) => {
   if (!win) return;
   
   const result = await dialog.showOpenDialog(win, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Web Content', extensions: ['html','htm','png','jpg','jpeg','gif','webp','svg','pdf'] }
-    ]
+    properties: ['openFile']
   });
 
   if (!result.canceled && result.filePaths.length > 0) {
@@ -897,6 +1131,153 @@ ipcMain.handle('open-folder-dialog', async (event) => {
   if (result.canceled || result.filePaths.length === 0) return null;
   const p = result.filePaths[0];
   return p;
+});
+
+// Site CSS IPC handlers
+ipcMain.handle('site-css:start-picker', () => {
+  try {
+    const win = lastContentWin || mainWindow || (Array.from(windows)[0] || null);
+    if (!win) return false;
+    win.webContents.send('zap-css-start');
+    try { win.focus(); } catch (_) {}
+    return true;
+  } catch (_) { return false; }
+});
+ipcMain.handle('site-css:stop-picker', () => {
+  try {
+    const win = lastContentWin || mainWindow || (Array.from(windows)[0] || null);
+    if (!win) return false;
+    win.webContents.send('zap-css-stop');
+    return true;
+  } catch (_) { return false; }
+});
+ipcMain.on('site-css:picker-result', (_e, payload) => {
+  try {
+    const ed = siteCssEditorWindow || openSiteCssEditorWindow();
+    if (!ed) return;
+    if (ed.webContents.isLoading()) {
+      ed.webContents.once('did-finish-load', () => {
+        try { ed.webContents.send('site-css:picker-result', payload); ed.focus(); } catch (_) {}
+      });
+    } else {
+      ed.webContents.send('site-css:picker-result', payload);
+      ed.focus();
+    }
+  } catch (_) {}
+});
+ipcMain.handle('site-css:read', () => {
+  try {
+    siteCssStore.ensureLoaded && siteCssStore.ensureLoaded();
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    if (!fs.existsSync(p)) return JSON.stringify({ version: 1, rules: [] }, null, 2);
+    return fs.readFileSync(p, 'utf8');
+  } catch (_) {
+    return JSON.stringify({ version: 1, rules: [] }, null, 2);
+  }
+});
+ipcMain.handle('site-css:write', (_e, raw) => {
+  try {
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    let parsed;
+    try { parsed = JSON.parse(String(raw)); } catch (err) { return { ok: false, error: String(err && err.message || err) }; }
+    const pretty = JSON.stringify(parsed, null, 2);
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, pretty, 'utf8');
+    try { siteCssStore.reload(); } catch (_) {}
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err && err.message || err) };
+  }
+});
+ipcMain.handle('site-css:get-matching', (_event, url) => {
+  try { return siteCssStore.getMatching(url); } catch (_) { return []; }
+});
+ipcMain.handle('site-css:add', (_event, rule) => {
+  try { return siteCssStore.add(rule); } catch (_) { return null; }
+});
+ipcMain.handle('site-css:list', () => {
+  try { return siteCssStore.list(); } catch (_) { return []; }
+});
+ipcMain.handle('site-css:reload', () => {
+  try { siteCssStore.reload(); return true; } catch (_) { return false; }
+});
+ipcMain.handle('site-css:open-file', async () => {
+  try {
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    const { shell } = require('electron');
+    await shell.openPath(p);
+    return p;
+  } catch (_) {
+    return null;
+  }
+});
+
+let lastAutoZap = null;
+ipcMain.handle('site-css:auto-add', (_e, payload) => {
+  try {
+    const host = payload && payload.host ? String(payload.host) : '';
+    const css = payload && payload.cssText ? [String(payload.cssText)] : [];
+    if (!host || css.length === 0) return { ok: false, error: 'invalid payload' };
+    const rule = siteCssStore.add({ enabled: true, match: { host }, css, notes: payload.selector ? `Auto: ${payload.selector}` : 'Auto zap' });
+    lastAutoZap = { id: rule.id, host };
+    try { if (siteCssEditorWindow) siteCssEditorWindow.webContents.send('site-css:auto-added', { id: rule.id, host, cssText: css[0] }); } catch (_) {}
+    return { ok: true, id: rule.id };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+ipcMain.handle('site-css:auto-undo', () => {
+  try {
+    if (!lastAutoZap || !lastAutoZap.id) return { ok: false, error: 'nothing to undo' };
+    const removed = siteCssStore.remove(lastAutoZap.id);
+    const ok = !!removed;
+    lastAutoZap = null;
+    return { ok };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
+
+ipcMain.handle('site-css:reset-host', (_e, host) => {
+  try {
+    if (!host) return { ok: false, error: 'no host' };
+    const rules = siteCssStore.list();
+    let count = 0;
+    for (const r of rules) {
+      const h = r && r.match && r.match.host ? String(r.match.host).toLowerCase() : '';
+      const isStarter = r && typeof r.id === 'string' && r.id.startsWith('starter-');
+      if (!isStarter && h === String(host).toLowerCase()) {
+        if (siteCssStore.remove(r.id)) count++;
+      }
+    }
+    return { ok: true, removed: count };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+});
+
+ipcMain.handle('site-css:compact-host', (_e, host) => {
+  try { return { ok: siteCssStore.compactHost(host) }; } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
+ipcMain.handle('site-css:set-host-enabled', (_e, host, enabled) => {
+  try {
+    if (!host) return { ok: false, error: 'no host' };
+    const rules = siteCssStore.list();
+    let count = 0;
+    for (const r of rules) {
+      const h = r && r.match && r.match.host ? String(r.match.host).toLowerCase() : '';
+      if (h === String(host).toLowerCase()) { siteCssStore.update(r.id, { enabled: !!enabled }); count++; }
+    }
+    return { ok: true, updated: count };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+});
+ipcMain.handle('site-css:clear-all', () => {
+  try {
+    const blank = JSON.stringify({ version: 1, rules: [] }, null, 2);
+    const p = siteCssStore.file || path.join(app.getPath('userData'), 'site-css.json');
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    fs.writeFileSync(p, blank, 'utf8');
+    siteCssStore.reload();
+    return { ok: true };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 });
 
 // Open a URL in a brand new CloudyWindow instance
