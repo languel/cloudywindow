@@ -1105,6 +1105,7 @@ if (iframe) {
     injectSiteCSS(currentUrl || '');
     injectDocViewerTransparency(currentUrl || '');
     applyUserSiteCSS(currentUrl || '');
+    try { applyCursorHidden(); } catch(_) {}
     // Show after content is ready if we hid before navigation
     if (iframe.dataset.preflush === '1') {
       requestAnimationFrame(() => {
@@ -1125,11 +1126,11 @@ if (iframe) {
     // Update URL bar with current location
     try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
     // Reapply site CSS on full navigations
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); applyCursorHidden(); } catch (_) {}
   });
   // Reapply site CSS on in-page navigations (SPA route changes)
   iframe.addEventListener('did-navigate-in-page', (_e) => {
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); applyCursorHidden(); } catch (_) {}
   });
 
   // When loading stops, reveal if still holding
@@ -1193,6 +1194,8 @@ if (iframe) {
       const payload = event.args && event.args[0] ? event.args[0] : {};
       try { console.log('[WV/debug]', payload); } catch(_) {}
       try { window.electronAPI.debugLog && window.electronAPI.debugLog('wv:debug', payload); } catch(_) {}
+    } else if (event.channel === 'wv-cursor-ping') {
+      ensureCursorHiddenIfNeeded();
     } else if (event.channel === 'mod-drag:on') {
       try { if (!dropOverlay.classList.contains('active')) modDragOverlay.classList.add('active'); } catch(_) {}
     } else if (event.channel === 'mod-drag:off') {
@@ -1237,19 +1240,41 @@ function setCanvasSafeMode(enabled) {
 
 window.electronAPI.onCanvasSafeMode && window.electronAPI.onCanvasSafeMode((_e, enabled) => setCanvasSafeMode(!!enabled));
 let cursorHidden = false;
+let __cursorCssKey = null;
 
 function applyCursorHidden() {
   try {
     const v = cursorHidden ? 'none' : '';
+    try { document.documentElement && (document.documentElement.style.cursor = v || ''); } catch(_) {}
+    try { document.body && (document.body.style.cursor = v || ''); } catch(_) {}
     if (contentRoot) contentRoot.style.cursor = v || '';
     if (uiContainer) uiContainer.style.cursor = v || '';
+    if (iframe) iframe.style.cursor = v || '';
   } catch(_) {}
   try {
     if (!iframe) return;
     if (cursorHidden) {
-      iframe.insertCSS('html,body,*{cursor:none !important}').catch(()=>{});
+      // Insert CSS once per document; keep key to remove later when un-hiding.
+      if (!__cursorCssKey) {
+        const css = 'html,body,*{cursor:none !important}';
+        try {
+          const p = iframe.insertCSS(css);
+          // insertCSS may return a promise with a key
+          if (p && typeof p.then === 'function') {
+            p.then((key) => { __cursorCssKey = key || '__cw_cursor_css__'; }).catch(()=>{});
+          } else {
+            __cursorCssKey = '__cw_cursor_css__';
+          }
+        } catch(_) {}
+      }
     } else {
-      // No direct way to remove insertCSS; rely on page styles; we can nudge reload if necessary
+      // Remove previously inserted CSS if possible
+      try {
+        if (__cursorCssKey && typeof iframe.removeInsertedCSS === 'function') {
+          iframe.removeInsertedCSS(__cursorCssKey).catch(()=>{});
+        }
+      } catch(_) {}
+      __cursorCssKey = null;
     }
   } catch(_) {}
 }
@@ -1258,3 +1283,15 @@ window.electronAPI.onSetCursorHidden && window.electronAPI.onSetCursorHidden((_e
   cursorHidden = !!hidden;
   applyCursorHidden();
 });
+
+// Keep cursor state sticky when re-entering the window/webview or regaining focus
+function ensureCursorHiddenIfNeeded() {
+  if (cursorHidden) {
+    try { applyCursorHidden(); } catch(_) {}
+  }
+}
+window.addEventListener('focus', ensureCursorHiddenIfNeeded, true);
+document.addEventListener('mouseenter', ensureCursorHiddenIfNeeded, true);
+if (iframe) {
+  try { iframe.addEventListener('mouseenter', ensureCursorHiddenIfNeeded); } catch(_) {}
+}

@@ -44,6 +44,19 @@ window.addEventListener('keydown', (e) => { if (e && (e.key === 'Alt' || e.key =
 window.addEventListener('keyup', (e) => { if (e && (e.key === 'Alt' || e.key === 'Shift' || !e.altKey || !e.shiftKey)) sendModDragState(e); }, true);
 window.addEventListener('blur', () => { safeSend('mod-drag:off', {}); }, true);
 
+// Lightweight cursor ping to help host re-apply hidden cursor on fast re-entry
+let __cw_cursor_ping_scheduled = false;
+window.addEventListener('mousemove', () => {
+  if (__cw_cursor_ping_scheduled) return;
+  __cw_cursor_ping_scheduled = true;
+  try {
+    requestAnimationFrame(() => {
+      __cw_cursor_ping_scheduled = false;
+      safeSend('wv-cursor-ping', {});
+    });
+  } catch(_){ __cw_cursor_ping_scheduled = false; }
+}, true);
+
 // ---- Zap CSS picker (install/uninstall + selector computation) ----
 let __zap_active = false;
 let __zap_overlay = null;

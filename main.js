@@ -91,6 +91,13 @@ function createWindow() {
     const cfg = settingsStore.get();
     newWindow._cursorHidden = !!(cfg && cfg.startup && cfg.startup.hideCursor);
   } catch(_) { newWindow._cursorHidden = false; }
+
+  // Inform renderer of initial cursor state once it loads
+  try {
+    newWindow.webContents.once('did-finish-load', () => {
+      try { newWindow.webContents.send('set-cursor-hidden', !!newWindow._cursorHidden); } catch(_) {}
+    });
+  } catch(_) {}
   
   // Add window to our collection
   windows.add(newWindow);
@@ -370,7 +377,6 @@ function createMenu() {
               } catch(_) { return [{ label: 'Unavailable', enabled: false }]; }
             })()
           },
-          },
           { type: 'separator' },
           { label: 'Hide Cursor at Startup', type: 'checkbox', checked: !!settingsStore.get().startup.hideCursor, click: (mi)=>settingsStore.setStartupHideCursor(mi.checked) },
           { type: 'separator' },
@@ -643,7 +649,7 @@ function createMenu() {
         {
           label: 'Hide Cursor (This Window)',
           type: 'checkbox',
-          accelerator: 'Alt+Shift+H',
+          accelerator: 'CmdOrCtrl+Shift+H',
           checked: !!focusedWin && !!focusedWin._cursorHidden,
           enabled: !!focusedWin,
           click: (menuItem) => {
