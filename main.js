@@ -311,12 +311,21 @@ function createMenu() {
       submenu: [
         {
           label: 'New Window',
-          accelerator: 'CmdOrCtrl+Alt+N',
+          accelerator: 'CmdOrCtrl+N',
           click: () => { createWindow(); }
         },
         {
+          label: 'New Fullscreen Window',
+          accelerator: 'CmdOrCtrl+Alt+N',
+          click: () => {
+            const win = createWindow();
+            // After creation, fill work area (same as Shift+F5)
+            try { positionWindowInQuadrant(win, 'full-screen'); } catch(_) {}
+          }
+        },
+        {
           label: 'Open File...',
-          accelerator: 'CmdOrCtrl+Alt+O',
+          accelerator: 'CmdOrCtrl+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-file-shortcut');
@@ -324,10 +333,33 @@ function createMenu() {
         },
         {
           label: 'Open Folder...',
-          accelerator: 'Alt+Shift+O',
+          accelerator: 'CmdOrCtrl+Shift+O',
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('open-folder-shortcut');
+          }
+        },
+        { type: 'separator' },
+        {
+          label: 'Save Screenshot…',
+          accelerator: 'CmdOrCtrl+Shift+S',
+          click: async () => {
+            try {
+              const win = BrowserWindow.getFocusedWindow();
+              if (!win) return;
+              const image = await win.capturePage();
+              const ts = new Date();
+              const pad = (n)=>String(n).padStart(2,'0');
+              const name = `cloudy-screenshot-${ts.getFullYear()}${pad(ts.getMonth()+1)}${pad(ts.getDate())}-${pad(ts.getHours())}${pad(ts.getMinutes())}${pad(ts.getSeconds())}.png`;
+              const defaultDir = app.getPath('pictures') || app.getPath('documents') || app.getPath('downloads');
+              const { canceled, filePath } = await dialog.showSaveDialog(win, {
+                title: 'Save Screenshot',
+                defaultPath: require('path').join(defaultDir, name),
+                filters: [{ name: 'PNG Image', extensions: ['png'] }]
+              });
+              if (canceled || !filePath) return;
+              require('fs').writeFileSync(filePath, image.toPNG());
+            } catch (_) {}
           }
         },
         { type: 'separator' },
@@ -458,7 +490,7 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Opt+Shift+[)',
+              label: 'Decrease',
               accelerator: 'Alt+Shift+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -466,7 +498,7 @@ function createMenu() {
               }
             },
             {
-              label: 'Increase (Opt+Shift+])',
+              label: 'Increase',
               accelerator: 'Alt+Shift+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -504,7 +536,7 @@ function createMenu() {
             },
             { type: 'separator' },
             {
-              label: 'Decrease (Cmd+Opt+[)',
+              label: 'Decrease',
               accelerator: 'CmdOrCtrl+Alt+[',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();
@@ -512,7 +544,7 @@ function createMenu() {
               }
             },
             {
-              label: 'Increase (Cmd+Opt+])',
+              label: 'Increase',
               accelerator: 'CmdOrCtrl+Alt+]',
               click: () => {
                 const win = BrowserWindow.getFocusedWindow();

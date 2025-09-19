@@ -73,6 +73,7 @@ function navigateToUrl(url) {
     // Treat absolute URLs including blob:/data:/file:/about: as already absolute
     const isAbsolute = /^(https?:|file:|blob:|data:|about:)/i.test(url);
     const isFile = /^file:/i.test(url);
+    const isBlob = /^blob:/i.test(url);
     if (!isAbsolute) {
       fullUrl = 'http://' + url;
     }
@@ -85,11 +86,14 @@ function navigateToUrl(url) {
         iframe.setAttribute('preload', absPreload);
       }
     } catch (_) {}
-    if (preDrawFlushEnabled) {
-      // Hide before navigation to prevent stale frames
-      iframe.style.display = 'none';
-      iframe.dataset.preflush = '1';
+    // Decide whether to hold reveal until dom-ready to reduce initial flicker
+    let holdMs = 0;
+    if (__pendingNavHoldMs) { holdMs = __pendingNavHoldMs; __pendingNavHoldMs = 0; }
+    else if (isFile || isBlob) {
+      holdMs = /\.(mp4|mov|m4v|webm|avi|pdf)$/i.test(String(fullUrl)) ? 700 : 350;
     }
+    if (preDrawFlushEnabled) holdMs = Math.max(holdMs, 350);
+    if (holdMs > 0) beginNavHold(holdMs);
     try {
       if (isFile) {
         // Setting src tends to be more reliable for local files in packaged apps
@@ -147,6 +151,37 @@ let dragCounter = 0; // legacy counter, now supplemented with debounce
 let __overlayHideTimer = null;
 let __overlayHover = false;
 let __dropGuardActive = false;
+let __navHoldTimer = null;
+let __pendingNavHoldMs = 0;
+
+function requestNavHold(ms = 300) {
+  try { __pendingNavHoldMs = Math.max(__pendingNavHoldMs || 0, ms|0); } catch(_) {}
+}
+
+function beginNavHold(maxMs = 800) {
+  try {
+    if (!iframe) return;
+    iframe.style.display = 'none';
+    iframe.dataset.navhold = '1';
+    if (__navHoldTimer) { clearTimeout(__navHoldTimer); __navHoldTimer = null; }
+    __navHoldTimer = setTimeout(() => { endNavHold(); }, Math.max(300, maxMs));
+  } catch(_) {}
+}
+
+function endNavHold() {
+  try {
+    if (!iframe) return;
+    if (iframe.dataset.navhold === '1') {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          iframe.style.display = '';
+          iframe.dataset.navhold = '0';
+        });
+      });
+    }
+    if (__navHoldTimer) { clearTimeout(__navHoldTimer); __navHoldTimer = null; }
+  } catch(_) {}
+}
 
 function showDropOverlay() {
   if (!dropOverlay) return;
@@ -274,6 +309,12 @@ async function handleFileDrop(event) {
         // Blob URL fallback (works well for images/PDF; HTML may miss relative assets)
         try {
           const blobUrl = URL.createObjectURL(file);
+          // Anticipate initial media flash; hold reveal a bit for video/PDF/images
+          try {
+            if (/^video\//i.test(file.type||'')) requestNavHold(700);
+            else if (/^image\//i.test(file.type||'')) requestNavHold(300);
+            else if (/pdf/i.test(file.type||'')) requestNavHold(600);
+          } catch(_) {}
           try { console.log('[DnD] using blob URL fallback:', blobUrl); } catch(_) {}
           try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:bloburl', { url: blobUrl, name: file && file.name, type: file && file.type, size: file && file.size }); } catch(_) {}
           navigateToUrl(blobUrl);
@@ -1073,9 +1114,12 @@ if (iframe) {
         });
       });
     }
+    // Also end any automatic nav hold
+    endNavHold();
   });
   iframe.addEventListener('did-fail-load', (e) => {
     console.warn('Content failed to load', e.errorCode, e.errorDescription, e.validatedURL);
+    endNavHold();
   });
   iframe.addEventListener('did-navigate', (_e) => {
     // Update URL bar with current location
@@ -1087,6 +1131,9 @@ if (iframe) {
   iframe.addEventListener('did-navigate-in-page', (_e) => {
     try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
+
+  // When loading stops, reveal if still holding
+  iframe.addEventListener('did-stop-loading', () => { endNavHold(); });
 
 
   // Manual transparency shortcut handler

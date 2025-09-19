@@ -56,8 +56,10 @@ A transparent, borderless browser overlay built with Electron.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
 - Drag region: a 24px invisible bar at the top allows window dragging when UI is hidden.
 - Keyboard shortcuts:
-  - `Cmd+Opt+O` - Open file
-  - `Opt+Shift+O` - Open folder (loads `index.html` if present)
+  - `Cmd+N` - New window
+  - `Cmd+Opt+N` - New fullscreen window
+  - `Cmd+O` - Open file
+  - `Cmd+Shift+O` - Open folder (loads `index.html` if present)
   - `Cmd+Opt+U` - Toggle UI visibility
   - `Cmd+Opt+L` - Go to URL bar
   - `Cmd+Opt+R` - Reload content (webview)
@@ -71,9 +73,11 @@ A transparent, borderless browser overlay built with Electron.
   - `Opt+Shift+T` - Toggle Always‑on‑Top (this window)
   - `Opt+Shift+M` - Toggle Click‑through mode (this window; global shortcut also available for recovery)
   - `Cmd+Opt+P` - Start DOM/CSS Picker (this window)
+  - `Cmd+Shift+S` - Save screenshot (PNG) of the current window
   - `Shift+F9` - Bottom half
   - `Shift+F12` - Bottom‑right 1/16 size (1/4×1/4)
   - `Shift+F11` - Centered overscan (push site UI offscreen)
+  - Hold `Opt+Shift` and drag anywhere to move the window (frameless helper)
 
 Transparency safety toggles (in app):
 - View → Developer → Transparent or Near Transparent window background
@@ -108,10 +112,11 @@ file://<path-to-repo>/default-minimal.html
 - Site CSS store: Rules live at Electron `userData/site-css.json` (per-user, survives updates). Use the in-app editor or open externally.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
 - Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
- - DnD with folders: On some OS paths aren’t exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
- - Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won’t load). Drop the folder or use Open Folder… for sketches with assets.
- - Document viewer transparency: Built‑in viewers for file:/blob:/data: URLs have their backdrops cleared to transparent.
- - Transparency stability: For fully transparent windows (0% alpha) GPU canvas pages may show afterimages. The default is 1% alpha; when at 0% the app performs short hard flushes. See `docs/DEVLOG.md` for details.
+- DnD with folders: On some OS paths aren’t exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
+- Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won’t load). Drop the folder or use Open Folder… for sketches with assets.
+- Document viewer transparency: Built‑in viewers for file:/blob:/data: URLs have their backdrops cleared to transparent.
+- Text files: Dragging `.txt/.md/.log/.nfo/.asc` renders a UTF‑8, monospace viewer so ASCII/Unicode art looks correct. `Cmd+O` supports all filetypes (no filter).
+- Transparency stability: For fully transparent windows (0% alpha) GPU canvas pages may show afterimages. The default is 1% alpha; when at 0% the app performs short hard flushes. See `docs/DEVLOG.md` for details.
 
 ## Build Icon (macOS)
 - To embed a macOS app icon generated from the 🌦️ emoji:
