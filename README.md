@@ -2,6 +2,18 @@
 
 A transparent, borderless browser overlay built with Electron.
 
+## Quickest Start (macOS)
+
+- Download the latest DMG: https://github.com/languel/cloudywindow/releases/latest
+- Open the DMG and drag `CloudyWindow.app` to `Applications`.
+- First time opening:
+  - Easiest: Right‑click the app in `Applications`, choose `Open`, then click `Open` again.
+  - If macOS still blocks it, run this once after moving to `Applications`:
+    ```sh
+    xattr -dr com.apple.quarantine "/Applications/CloudyWindow.app"
+    ```
+- Launch the app. Hold `Opt+Shift` and drag anywhere to move the window. Use `Cmd+O` to open a file or `Cmd+Shift+O` to open a folder (loads `index.html` if present).
+
 ## Features
 - Transparent, frameless window for overlaying web content
 - Basic browser navigation (back, forward, reload, URL bar)
@@ -111,7 +123,7 @@ file://<path-to-repo>/default-minimal.html
 - Popup handling: The webview has `allowpopups`, but the app intercepts all `window.open`/`_blank` requests and routes them to managed CloudyWindows (native titlebar is never shown).
 - Site CSS store: Rules live at Electron `userData/site-css.json` (per-user, survives updates). Use the in-app editor or open externally.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
-- Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
+ - Drag & Drop: Some pages may intercept drops; use `Cmd+O` / `Cmd+Shift+O` if needed.
 - DnD with folders: On some OS paths aren’t exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
 - Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won’t load). Drop the folder or use Open Folder… for sketches with assets.
 - Document viewer transparency: Built‑in viewers for file:/blob:/data: URLs have their backdrops cleared to transparent.
@@ -129,21 +141,21 @@ file://<path-to-repo>/default-minimal.html
  - Environment and build settings: `docs/ENV.md`
  - Zap CSS + per-site CSS design/UX: `docs/ZAPCSS.md`
 
-## macOS Unsigned Builds (Gatekeeper)
-If you distribute an unsigned build to students, macOS may block it. Options:
+## macOS Gatekeeper
+If macOS warns that the app is from an unidentified developer:
 
-- Easiest: Right-click the app, choose `Open`, then confirm. This whitelists once.
-- Remove quarantine attribute (after moving the app to `/Applications`):
+- Right‑click `CloudyWindow.app` → `Open` → `Open` (quickest, one‑time per version).
+- Or remove the quarantine attribute after moving the app to `Applications`:
   ```sh
   xattr -dr com.apple.quarantine "/Applications/CloudyWindow.app"
   ```
-- If Gatekeeper still intercepts, ad‑hoc sign locally:
+- Advanced: you can ad‑hoc sign locally (optional):
   ```sh
   sudo codesign --force --deep --sign - "/Applications/CloudyWindow.app"
   ```
 
 Notes:
-- Only run these commands for software you trust.
+- Do this only for software you trust.
 - After updates, you may need to repeat the `xattr` step.
 
 ## License
