@@ -1236,3 +1236,25 @@ function setCanvasSafeMode(enabled) {
 }
 
 window.electronAPI.onCanvasSafeMode && window.electronAPI.onCanvasSafeMode((_e, enabled) => setCanvasSafeMode(!!enabled));
+let cursorHidden = false;
+
+function applyCursorHidden() {
+  try {
+    const v = cursorHidden ? 'none' : '';
+    if (contentRoot) contentRoot.style.cursor = v || '';
+    if (uiContainer) uiContainer.style.cursor = v || '';
+  } catch(_) {}
+  try {
+    if (!iframe) return;
+    if (cursorHidden) {
+      iframe.insertCSS('html,body,*{cursor:none !important}').catch(()=>{});
+    } else {
+      // No direct way to remove insertCSS; rely on page styles; we can nudge reload if necessary
+    }
+  } catch(_) {}
+}
+
+window.electronAPI.onSetCursorHidden && window.electronAPI.onSetCursorHidden((_e, hidden) => {
+  cursorHidden = !!hidden;
+  applyCursorHidden();
+});

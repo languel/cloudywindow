@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu, sessi
 const fs = require('fs');
 const path = require('path');
 const siteCssStore = require('./main/siteCssStore');
+const settingsStore = require('./main/settingsStore');
 const os = require('os');
 
 let siteCssEditorWindow = null; // dedicated editor window
@@ -84,6 +85,12 @@ function createWindow() {
   newWindow.isClickThrough = false;
 
   newWindow.loadFile('index.html');
+
+  // Set initial cursor visibility per settings
+  try {
+    const cfg = settingsStore.get();
+    newWindow._cursorHidden = !!(cfg && cfg.startup && cfg.startup.hideCursor);
+  } catch(_) { newWindow._cursorHidden = false; }
   
   // Add window to our collection
   windows.add(newWindow);
@@ -296,14 +303,47 @@ function createMenu() {
       label: app.name,
       submenu: [
         { role: 'about' },
+        { label: 'Preferences', submenu: [
+          { label: 'Set Startup File...', click: async () => {
+              try {
+                const w = BrowserWindow.getFocusedWindow() || mainWindow;
+                if (!w) return;
+                const res = await dialog.showOpenDialog(w, { properties: ['openFile'] });
+                if (!res.canceled && res.filePaths && res.filePaths[0]) {
+                  settingsStore.setStartupPath(res.filePaths[0]);
+                }
+              } catch(_) {}
+            } },
+          { label: 'Set Startup Folder...', click: async () => {
+              try {
+                const w = BrowserWindow.getFocusedWindow() || mainWindow;
+                if (!w) return;
+                const res = await dialog.showOpenDialog(w, { properties: ['openDirectory'] });
+                if (!res.canceled && res.filePaths && res.filePaths[0]) {
+                  settingsStore.setStartupPath(res.filePaths[0]);
+                }
+              } catch(_) {}
+            } },
+          { label: 'Clear Startup Target', click: () => { try { settingsStore.setStartupPath(null); } catch(_) {} } },
+          { type: 'separator' },
+          { label: 'Startup Mode', submenu: [
+            { label: 'Normal', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='normal', click:()=>settingsStore.setStartupMode('normal') },
+            { label: 'Fullscreen', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='fullscreen', click:()=>settingsStore.setStartupMode('fullscreen') },
+            { label: 'Fill Screen', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='fill-screen', click:()=>settingsStore.setStartupMode('fill-screen') },
+            { label: 'Overscan Center', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='overscan-center', click:()=>settingsStore.setStartupMode('overscan-center') },
+          ]},
+          { type: 'separator' },
+          { label: 'Hide Cursor at Startup', type: 'checkbox', checked: !!settingsStore.get().startup.hideCursor, click: (mi)=>settingsStore.setStartupHideCursor(mi.checked) },
+          { type: 'separator' },
+          { role: 'services' },
+          { type: 'separator' },
+          { role: 'hide' },
+          { role: 'hideOthers' },
+          { role: 'unhide' },
+          { type: 'separator' },
+          { role: 'quit' }
+        ] },
         { type: 'separator' },
-        { role: 'services' },
-        { type: 'separator' },
-        { role: 'hide' },
-        { role: 'hideOthers' },
-        { role: 'unhide' },
-        { type: 'separator' },
-        { role: 'quit' }
       ]
     }] : []),
     {
@@ -559,6 +599,21 @@ function createMenu() {
           click: () => {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('toggle-ui-shortcut');
+          }
+        },
+        {
+          label: 'Hide Cursor (This Window)',
+          type: 'checkbox',
+          accelerator: 'Alt+Shift+H',
+          checked: !!focusedWin && !!focusedWin._cursorHidden,
+          enabled: !!focusedWin,
+          click: (menuItem) => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) {
+              win._cursorHidden = !!menuItem.checked;
+              try { win.webContents.send('set-cursor-hidden', win._cursorHidden); } catch(_) {}
+              updateWindowMenu();
+            }
           }
         },
         {
@@ -1308,3 +1363,42 @@ app.on('will-quit', () => {
 });
 
 app.on('browser-window-focus', updateWindowMenu);
+  // Apply startup preferences to the first window
+  try {
+    const cfg = settingsStore.get();
+    const win = mainWindow;
+    if (win && cfg && cfg.startup) {
+      // Startup mode
+      const mode = cfg.startup.mode || 'normal';
+      if (mode === 'fullscreen') {
+        try { win.setFullScreen(true); } catch(_) {}
+      } else if (mode === 'fill-screen') {
+        try { positionWindowInQuadrant(win, 'full-screen'); } catch(_) {}
+      } else if (mode === 'overscan-center') {
+        try { positionWindowInQuadrant(win, 'overscan-center-110'); } catch(_) {}
+      }
+      // Hide cursor at startup (send after load)
+      try {
+        win.webContents.once('did-finish-load', () => {
+          try { win.webContents.send('set-cursor-hidden', !!cfg.startup.hideCursor); } catch(_) {}
+        });
+      } catch(_) {}
+      // Startup path
+      let sp = cfg.startup.path;
+      if (sp && typeof sp === 'string' && sp.trim()) {
+        try {
+          // Resolve directory -> index.html
+          let p = sp;
+          if (p.startsWith('file://')) p = new URL(p).pathname;
+          if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
+            const idx = ['index.html','index.htm'].map(f => path.join(p,f)).find(f => fs.existsSync(f));
+            if (idx) p = idx;
+          }
+          const url = p.startsWith('file://') ? p : 'file://' + p;
+          win.webContents.once('did-finish-load', () => {
+            try { win.webContents.send('navigate-to', url); } catch(_) {}
+          });
+        } catch(_) {}
+      }
+    }
+  } catch(_) {}

@@ -44,6 +44,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onOpenSiteCssEditor: (callback) => ipcRenderer.on('open-site-css-editor', callback),
     onZapCssStart: (callback) => ipcRenderer.on('zap-css-start', callback),
     onZapCssStop: (callback) => ipcRenderer.on('zap-css-stop', callback),
+    onSetCursorHidden: (callback) => ipcRenderer.on('set-cursor-hidden', callback),
     // Resolve directories to index.html in main process
     resolveOpenable: (p) => ipcRenderer.invoke('resolve-openable', p),
     openFolderDialog: () => ipcRenderer.invoke('open-folder-dialog'),
