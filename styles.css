@@ -177,6 +177,21 @@ body {
     opacity: 1;
 }
 
+/* Opt+Shift drag overlay (hidden by default) */
+#mod-drag-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2000; /* above webview/resize, below sitecss overlay */
+    display: none;
+    pointer-events: none; /* only active when .active */
+    -webkit-app-region: drag; /* make whole surface draggable */
+    background: transparent; /* fully transparent */
+}
+#mod-drag-overlay.active {
+    display: block;
+    pointer-events: auto;
+}
+
 /* Site CSS editor overlay */
 #sitecss-overlay {
     position: absolute;

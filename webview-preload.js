@@ -26,12 +26,23 @@ window.addEventListener('drop', (e) => {
   const files = e.dataTransfer?.files ? Array.from(e.dataTransfer.files).map(f => f.path) : [];
   const uriList = e.dataTransfer?.getData ? e.dataTransfer.getData('text/uri-list') : '';
   const text = e.dataTransfer?.getData ? e.dataTransfer.getData('text/plain') : '';
-  safeSend('wv-drop', { files, uriList, text });
+safeSend('wv-drop', { files, uriList, text });
   try {
     const types = (e.dataTransfer && e.dataTransfer.types) ? Array.from(e.dataTransfer.types) : [];
     safeSend('wv-debug', { kind: 'drop', types, filesLen: (files && files.length) || 0, hasUriList: !!uriList, hasText: !!text });
   } catch (_) {}
 });
+
+// Relay modifier keys (Opt+Shift) so host can show drag overlay even when webview is focused
+function sendModDragState(e) {
+  try {
+    const on = !!(e && e.altKey && e.shiftKey);
+    safeSend(on ? 'mod-drag:on' : 'mod-drag:off', { alt: !!e.altKey, shift: !!e.shiftKey });
+  } catch (_) {}
+}
+window.addEventListener('keydown', (e) => { if (e && (e.key === 'Alt' || e.key === 'Shift' || e.altKey || e.shiftKey)) sendModDragState(e); }, true);
+window.addEventListener('keyup', (e) => { if (e && (e.key === 'Alt' || e.key === 'Shift' || !e.altKey || !e.shiftKey)) sendModDragState(e); }, true);
+window.addEventListener('blur', () => { safeSend('mod-drag:off', {}); }, true);
 
 // ---- Zap CSS picker (install/uninstall + selector computation) ----
 let __zap_active = false;

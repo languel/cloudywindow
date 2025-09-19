@@ -999,6 +999,20 @@ __ipcMainForDebug.handle('debug:log', (_event, payload) => {
   }
 });
 
+// Read a local text file (UTF-8). Accepts file:// URL or absolute path
+ipcMain.handle('fs:read-text', async (_e, p) => {
+  try {
+    if (!p) return null;
+    let f = String(p);
+    if (f.startsWith('file://')) {
+      try { f = new URL(f).pathname; } catch (_) {}
+    }
+    if (!fs.existsSync(f)) return null;
+    const buf = fs.readFileSync(f);
+    return buf.toString('utf8');
+  } catch (_) { return null; }
+});
+
 // Import a dropped directory (no real path exposed) into a temp folder and return index path
 ipcMain.handle('tempfs:import', async (_e, payload) => {
   try {
@@ -1042,10 +1056,7 @@ ipcMain.on('open-file', async (event) => {
   if (!win) return;
   
   const result = await dialog.showOpenDialog(win, {
-    properties: ['openFile'],
-    filters: [
-      { name: 'Web Content', extensions: ['html','htm','png','jpg','jpeg','gif','webp','svg','pdf'] }
-    ]
+    properties: ['openFile']
   });
 
   if (!result.canceled && result.filePaths.length > 0) {

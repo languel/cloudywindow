@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js'),
     // Minimal debug logging to main (writes to userData/cloudywindow.log)
     debugLog: (message, extra) => ipcRenderer.invoke('debug:log', { message, extra }),
+    // Read a local text file as UTF-8
+    readTextFile: (p) => ipcRenderer.invoke('fs:read-text', p),
     // Temp FS import: write a virtual folder into a temp dir and return index path
     tempfsImport: (payload) => ipcRenderer.invoke('tempfs:import', payload)
 });

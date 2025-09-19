@@ -12,6 +12,7 @@ const toggleUiButton = document.getElementById('toggle-ui-button');
 const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
 const contentRoot = document.getElementById('content-root');
+const modDragOverlay = document.getElementById('mod-drag-overlay');
 // Site CSS editor overlay elements
 const siteCssOverlay = document.getElementById('sitecss-overlay');
 const siteCssEditor = document.getElementById('sitecss-editor');
@@ -120,6 +121,28 @@ function openLocalFile(filePath) {
     navigateToUrl(fileUrl);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function openTextContentAsHtml(text, title) {
+  try {
+    const safe = escapeHtml(text || '');
+    const t = title ? String(title) : 'Text';
+    const html = `<!doctype html><meta charset="utf-8"><title>${t}</title>
+    <style>
+      html,body{margin:0;height:100%;background:transparent;color:rgba(255,255,255,0.92)}
+      pre{white-space:pre; margin:12px; font:13px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", monospace}
+    </style>
+    <pre>${safe}</pre>`;
+    const url = 'data:text/html;charset=utf-8,' + encodeURIComponent(html);
+    navigateToUrl(url);
+  } catch (_) {
+    // Fallback to plain text data URL
+    try { const url = 'data:text/plain;charset=utf-8,' + encodeURIComponent(String(text||'')); navigateToUrl(url); } catch (_) {}
+  }
+}
+
 let dragCounter = 0; // legacy counter, now supplemented with debounce
 let __overlayHideTimer = null;
 let __overlayHover = false;
@@ -172,6 +195,14 @@ async function handleFileDrop(event) {
         try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:file', { name: file && file.name, type: file && file.type, size: file && file.size, rawPath }); } catch(_) {}
 
         if (rawPath) {
+          // Special-case common text files to preserve UTF-8 Unicode art
+          try {
+            const lower = (file && file.name ? String(file.name).toLowerCase() : '') || String(rawPath).toLowerCase();
+            if (/(\.txt|\.md|\.log|\.nfo|\.asc)$/.test(lower) || (file && /^text\//i.test(file.type || ''))) {
+              const txt = await window.electronAPI.readTextFile(rawPath);
+              if (txt != null) { openTextContentAsHtml(txt, file && file.name); return; }
+            }
+          } catch (_) {}
           // Ask main to resolve directories (index.html) etc.
           window.electronAPI.resolveOpenable(rawPath).then(resolved => {
             try { console.log('[DnD] resolved path:', resolved || '(null)'); } catch(_) {}
@@ -227,6 +258,16 @@ async function handleFileDrop(event) {
               }
               return;
             }
+          }
+        } catch (_) {}
+
+        // If the dropped object is a text file but no path exposed, read as UTF‑8 and render HTML wrapper
+        try {
+          const isTextLike = (file && ((/^text\//i.test(file.type || '')) || /\.(txt|md|log|nfo|asc)$/i.test(file.name || '')));
+          if (isTextLike && file && typeof file.text === 'function') {
+            const txt = await file.text();
+            openTextContentAsHtml(txt, file && file.name);
+            return;
           }
         } catch (_) {}
 
@@ -582,6 +623,19 @@ document.addEventListener('dragend', () => hideDropOverlay());
 document.addEventListener('drop', handleFileDrop);
 iframe.addEventListener('drop', handleFileDrop);
 
+// Also react to host key states (when webview isn't focused)
+window.addEventListener('keydown', (e) => {
+  try {
+    if (e && e.altKey && e.shiftKey && !dropOverlay.classList.contains('active')) modDragOverlay.classList.add('active');
+  } catch(_) {}
+}, true);
+window.addEventListener('keyup', (e) => {
+  try {
+    if (!e || !e.altKey || !e.shiftKey) modDragOverlay.classList.remove('active');
+  } catch(_) {}
+}, true);
+window.addEventListener('blur', () => { try { modDragOverlay.classList.remove('active'); } catch(_) {} }, true);
+
 // Helpers to enumerate a dropped directory via webkit entries and build a payload for temp import
 async function collectDirectory(dirEntry) {
   const rootName = String(dirEntry && dirEntry.name || 'drop');
@@ -648,8 +702,15 @@ if (window.electronAPI.onNavigateTo) {
   });
 }
 
-window.electronAPI.onFileSelected((event, filePath) => {
-    openLocalFile(filePath);
+window.electronAPI.onFileSelected(async (event, filePath) => {
+  try {
+    const lower = String(filePath || '').toLowerCase();
+    if (/(\.txt|\.md|\.log|\.nfo|\.asc)$/.test(lower)) {
+      const txt = await window.electronAPI.readTextFile(filePath);
+      if (txt != null) { openTextContentAsHtml(txt, lower.split('/').pop()); return; }
+    }
+  } catch (_) {}
+  openLocalFile(filePath);
 });
 
 window.electronAPI.onOpenFileShortcut(() => {
@@ -895,6 +956,10 @@ function injectDocViewerTransparency(url) {
     /* Clear default dark backdrops in Chromium viewers */
     html, body { background: transparent !important; }
     img, video, canvas, svg, embed, object { background: transparent !important; }
+    /* Plain text viewer: enforce monospaced font + visible color for ASCII/Unicode art */
+    body, pre { color: rgba(255,255,255,0.92) !important; }
+    pre, body { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", "Noto Sans Symbols 2", "Segoe UI Symbol", monospace !important; }
+    pre { white-space: pre; font-size: 13px; line-height: 1.2; }
     /* PDF viewer common containers */
     #viewer, #viewerContainer, .viewer, .page, .pdfViewer, .pdfCanvas, viewer-toolbar, .toolbar,
     .toolbarContainer, .hiddenSmallView, .hiddenLargeView, .secondaryToolbar, .findbar,
@@ -1081,6 +1146,10 @@ if (iframe) {
       const payload = event.args && event.args[0] ? event.args[0] : {};
       try { console.log('[WV/debug]', payload); } catch(_) {}
       try { window.electronAPI.debugLog && window.electronAPI.debugLog('wv:debug', payload); } catch(_) {}
+    } else if (event.channel === 'mod-drag:on') {
+      try { if (!dropOverlay.classList.contains('active')) modDragOverlay.classList.add('active'); } catch(_) {}
+    } else if (event.channel === 'mod-drag:off') {
+      try { modDragOverlay.classList.remove('active'); } catch(_) {}
     } else if (event.channel === 'zap-css-picked') {
       try {
         const payload = event.args && event.args[0] ? event.args[0] : {};
