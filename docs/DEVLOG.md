@@ -100,3 +100,22 @@ Notes:
 
 - Initial flicker smoothing
   - Added a short "navigation hold" around file:/ and blob: navigations, ending on `dom-ready`/`did-stop-loading` (longer for video/PDF). Works alongside Pre-Draw Hard Flush.
+
+### Known Issue: Cursor Hide Re-entry Race (per-window)
+
+Symptoms
+- With multiple windows using different cursor states, a very fast pointer exit and re-entry into a window that has "hide cursor" enabled can briefly show the cursor and, in rare cases, leave it visible until the next event.
+
+Current behavior/mitigations
+- Per-window cursor state is tracked in main (`win._cursorHidden`) and synchronized to renderer on load and toggle.
+- Renderer immediately sets `cursor: none` on documentElement/body/host containers/webview and injects `cursor:none !important` CSS into guest content.
+- Re-applies on `dom-ready`/`did-navigate`/`did-navigate-in-page`, and on host `focus`/`mouseenter`.
+- Added a throttled webview `mousemove` ping (wv-cursor-ping) to re-assert hidden state on very fast re-entry when host `mouseenter` might be missed.
+
+Hypothesis
+- On rapid crossings, OS-level enter/leave ordering to the frameless surface and the embedded webview can skip host enter/focus handlers. The first guest mousemove may be processed before our host gets a corresponding event, leaving the cursor style from the system until we reassert.
+
+Potential next steps
+- Add a short repeating enforcement timer (e.g., while hidden, re-apply `cursor:none` every 150–250 ms for ~1–2 seconds after a leave/enter sequence).
+- Use `Cursor.setCursor` at the OS level where available or apply a transparent custom cursor via data URL on host/webview as a fallback.
+- Persist default cursor state for new windows (preference) and optionally expose a quick menu to propagate the current window's state to all windows.
