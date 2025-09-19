@@ -319,6 +319,20 @@
       "category": "public.app-category.utilities",
       "icon": "build/icon.icns",
       "artifactName": "cloudywindow-${version}-${arch}.${ext}"
-    }
+    },
+    "win": {
+      "target": ["nsis", "zip"],
+      "artifactName": "cloudywindow-${version}-${arch}.${ext}"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Utility",
+      "artifactName": "cloudywindow-${version}-${arch}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github"
+      }
+    ]
   }
 }

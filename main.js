@@ -150,6 +150,71 @@ function createWindow() {
   return newWindow;
 }
 
+// Resolve a startup target path (file or directory) to an openable file path
+function resolveStartupPath(p) {
+  try {
+    if (!p) return null;
+    let x = String(p);
+    if (x.startsWith('file://')) x = new URL(x).pathname;
+    if (!fs.existsSync(x)) return null;
+    const st = fs.statSync(x);
+    if (st.isDirectory()) {
+      const idx = ['index.html','index.htm'].map(f => path.join(x,f)).find(f => fs.existsSync(f));
+      if (idx) return idx;
+      // fallback: first .html in the folder
+      const entries = fs.readdirSync(x);
+      const html = entries.find(e => e.toLowerCase().endsWith('.html') || e.toLowerCase().endsWith('.htm'));
+      if (html) return path.join(x, html);
+      return null;
+    }
+    return x;
+  } catch (_) { return null; }
+}
+
+function applyStartupPreferences(win, cfg) {
+  try {
+    if (!win || !cfg || !cfg.startup) return;
+    // Preferred display centering
+    try {
+      const targetId = cfg.startup.displayId;
+      if (targetId !== null && typeof targetId !== 'undefined') {
+        const displays = screen.getAllDisplays();
+        const d = displays.find(dd => dd.id === Number(targetId));
+        const use = d || screen.getPrimaryDisplay();
+        if (use) {
+          const wa = use.workArea;
+          const b = win.getBounds();
+          const w = Math.min(b.width, wa.width);
+          const h = Math.min(b.height, wa.height);
+          const x = wa.x + Math.round((wa.width - w) / 2);
+          const y = wa.y + Math.round((wa.height - h) / 2);
+          win.setBounds({ x, y, width: w, height: h });
+        }
+      }
+    } catch(_) {}
+    // Startup mode
+    try {
+      const mode = cfg.startup.mode || 'normal';
+      if (mode === 'fullscreen') win.setFullScreen(true);
+      else if (mode === 'fill-screen') positionWindowInQuadrant(win, 'full-screen');
+      else if (mode === 'overscan-center') positionWindowInQuadrant(win, 'overscan-center-110');
+    } catch(_) {}
+    // Cursor hidden
+    try { win.webContents.once('did-finish-load', () => { try { win.webContents.send('set-cursor-hidden', !!cfg.startup.hideCursor); } catch(_) {} }); } catch(_) {}
+    // Startup path navigation
+    try {
+      const sp = cfg.startup.path;
+      const openable = resolveStartupPath(sp);
+      if (openable) {
+        const url = openable.startsWith('file://') ? openable : 'file://' + openable;
+        win.webContents.once('did-finish-load', () => {
+          try { win.webContents.send('navigate-to', url); } catch(_) {}
+        });
+      }
+    } catch(_) {}
+  } catch(_) {}
+}
+
 // Move window resizing handler outside createWindow function
 // This ensures it's only registered once
 ipcMain.handle('set-window-size', (event, width, height) => {
@@ -352,6 +417,22 @@ function createMenu() {
               } catch(_) {}
             } },
           { label: 'Clear Startup Target', click: () => { try { settingsStore.setStartupPath(null); } catch(_) {} } },
+          { label: 'Open Settings File...', click: async () => {
+              try {
+                const p = settingsStore.file;
+                const { shell } = require('electron');
+                await shell.openPath(p);
+              } catch(_) {}
+            }
+          },
+          { label: 'Reveal Settings File', click: async () => {
+              try {
+                const p = settingsStore.file;
+                const { shell } = require('electron');
+                if (shell.showItemInFolder) shell.showItemInFolder(p); else await shell.openPath(require('path').dirname(p));
+              } catch(_) {}
+            }
+          },
           { type: 'separator' },
           { label: 'Startup Mode', submenu: [
             { label: 'Normal', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='normal', click:()=>settingsStore.setStartupMode('normal') },
@@ -1058,7 +1139,9 @@ app.whenReady().then(async () => {
   // Create menu before creating any windows
   createMenu();
 
-  createWindow();
+  const first = createWindow();
+  // Apply startup settings to the first window
+  try { applyStartupPreferences(first, settingsStore.get()); } catch(_) {}
 
   // Ensure any window.open / target=_blank from webviews opens as a CloudyWindow
   app.on('web-contents-created', (_event, contents) => {
@@ -1436,60 +1519,3 @@ app.on('will-quit', () => {
 });
 
 app.on('browser-window-focus', updateWindowMenu);
-  // Apply startup preferences to the first window
-  try {
-    const cfg = settingsStore.get();
-    const win = mainWindow;
-    if (win && cfg && cfg.startup) {
-      // Preferred display
-      try {
-        const targetId = cfg.startup.displayId;
-        if (targetId !== null && typeof targetId !== 'undefined') {
-          const displays = screen.getAllDisplays();
-          const d = displays.find(dd => dd.id === Number(targetId));
-          const use = d || screen.getPrimaryDisplay();
-          if (use) {
-            const wa = use.workArea;
-            const b = win.getBounds();
-            const w = Math.min(b.width, wa.width);
-            const h = Math.min(b.height, wa.height);
-            const x = wa.x + Math.round((wa.width - w) / 2);
-            const y = wa.y + Math.round((wa.height - h) / 2);
-            win.setBounds({ x, y, width: w, height: h });
-          }
-        }
-      } catch(_) {}
-      // Startup mode
-      const mode = cfg.startup.mode || 'normal';
-      if (mode === 'fullscreen') {
-        try { win.setFullScreen(true); } catch(_) {}
-      } else if (mode === 'fill-screen') {
-        try { positionWindowInQuadrant(win, 'full-screen'); } catch(_) {}
-      } else if (mode === 'overscan-center') {
-        try { positionWindowInQuadrant(win, 'overscan-center-110'); } catch(_) {}
-      }
-      // Hide cursor at startup (send after load)
-      try {
-        win.webContents.once('did-finish-load', () => {
-          try { win.webContents.send('set-cursor-hidden', !!cfg.startup.hideCursor); } catch(_) {}
-        });
-      } catch(_) {}
-      // Startup path
-      let sp = cfg.startup.path;
-      if (sp && typeof sp === 'string' && sp.trim()) {
-        try {
-          // Resolve directory -> index.html
-          let p = sp;
-          if (p.startsWith('file://')) p = new URL(p).pathname;
-          if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
-            const idx = ['index.html','index.htm'].map(f => path.join(p,f)).find(f => fs.existsSync(f));
-            if (idx) p = idx;
-          }
-          const url = p.startsWith('file://') ? p : 'file://' + p;
-          win.webContents.once('did-finish-load', () => {
-            try { win.webContents.send('navigate-to', url); } catch(_) {}
-          });
-        } catch(_) {}
-      }
-    }
-  } catch(_) {}
