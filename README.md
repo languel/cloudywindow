@@ -20,7 +20,7 @@ A transparent, borderless browser overlay built with Electron.
 - Drag-and-drop file and URL support
 - Open local HTML files (PDF optional; see Notes)
 - Links with `target=_blank` open in a new frameless CloudyWindow
-- Per‑site CSS rules with starter recipes (TLDraw, Excalidraw, Strudel, play.ertdfgcvb.xyz, Cables, Unit)
+- Per‑site CSS rules with starter recipes
 - Built‑in Site CSS editor window + DOM/CSS picker with auto‑zap, undo, and site reset
 - Keyboard shortcuts for UI toggling, fullscreen, and more
 - Custom frameless resize handles (edges + corners)
@@ -61,8 +61,8 @@ A transparent, borderless browser overlay built with Electron.
    - Note: Some pages can swallow drag events; if drop doesn't trigger, use the shortcuts below.
 - Links that open in a new tab/window (`target=_blank`) are intercepted and opened as a new CloudyWindow with the same frameless, transparent style. New windows are managed in the Window menu.
 - Per‑site CSS:
-  - Developer → Site CSS → Edit In‑App… opens a JSON editor backed by `site-css.json` in your user data folder.
-  - Click “Start Picker” then:
+  - Developer -> Site CSS -> Edit In-App... opens a JSON editor backed by `site-css.json` in your user data folder.
+  - Click "Start Picker" then:
     - 📄 `P` page/root transparent • 🫥 `T` transparent • 🙈 `H` hide • ↩️ `Z` undo • ♻️ `R` reset site rules (keeps built‑in starter rules) • ✅ `Enter` done • ✖️ `Esc` cancel
   - Save to persist. Rules apply on the next navigation for that site.
 - Frameless resize: drag edges/corners (invisible handles) to resize.
@@ -124,8 +124,8 @@ file://<path-to-repo>/default-minimal.html
 - Site CSS store: Rules live at Electron `userData/site-css.json` (per-user, survives updates). Use the in-app editor or open externally.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
  - Drag & Drop: Some pages may intercept drops; use `Cmd+O` / `Cmd+Shift+O` if needed.
-- DnD with folders: On some OS paths aren’t exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
-- Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won’t load). Drop the folder or use Open Folder… for sketches with assets.
+- DnD with folders: On some OS paths aren't exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
+- Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won't load). Drop the folder or use Open Folder... for sketches with assets.
 - Document viewer transparency: Built‑in viewers for file:/blob:/data: URLs have their backdrops cleared to transparent.
 - Text files: Dragging `.txt/.md/.log/.nfo/.asc` renders a UTF‑8, monospace viewer so ASCII/Unicode art looks correct. `Cmd+O` supports all filetypes (no filter).
 - Transparency stability: For fully transparent windows (0% alpha) GPU canvas pages may show afterimages. The default is 1% alpha; when at 0% the app performs short hard flushes. See `docs/DEVLOG.md` for details.

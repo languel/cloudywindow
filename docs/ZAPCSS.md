@@ -1,17 +1,17 @@
-# Zap CSS and Per‑Site CSS - Design
+# Zap CSS and Per-Site CSS - Design
 
-This document proposes an approach for user‑defined, per‑site CSS and an interactive “Zap CSS” tool that lets users pick elements in a page and apply style fixes (e.g., make backgrounds transparent, hide blocks).
+This document proposes an approach for user-defined, per-site CSS and an interactive "Zap CSS" tool that lets users pick elements in a page and apply style fixes (e.g., make backgrounds transparent, hide blocks).
 
 ## Goals
 - Let users define CSS that applies automatically per site (host/path matcher).
-- Provide an interactive picker (“Zap CSS”) to generate selectors and common rules without hand‑editing.
+- Provide an interactive picker ("Zap CSS") to generate selectors and common rules without hand-editing.
 - Persist rules and apply them on each visit, across all CloudyWindow instances.
 - Keep the system safe: CSS injection only by default (optional JS hooks guarded).
 
 ## Non‑Goals (Phase 1)
 - Full visual editor with undo/redo.
 - Cross‑device sync of rules.
-- Complex rule languages; we’ll start simple and iterate.
+- Complex rule languages; we'll start simple and iterate.
 
 ---
 
@@ -126,7 +126,7 @@ Add to Developer menu:
 - Site CSS →
   - Enable/Disable for Current Site (toggle)
   - Clear Site Rules for Current Site
-  - Edit Site CSS File… (opens JSON)
+- Edit Site CSS File... (opens JSON)
 
 Optional HUD control in the CloudyWindow UI later.
 

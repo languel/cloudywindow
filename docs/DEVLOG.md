@@ -1,11 +1,11 @@
 # Dev Log - CloudyWindow (feature/webview)
 
-This document tracks notable issues, decisions, and fixes while developing the webview‑based overlay.
+This document tracks notable issues, decisions, and fixes while developing the webview-based overlay.
 
 ## 2025‑09 - Webview migration + transparency fixes
 
 - Drag & drop over content
-  - Problem: iframe swallowed drag events cross‑origin; overlay didn’t trigger.
+  - Problem: iframe swallowed drag events cross-origin; overlay didn't trigger.
   - Solution: switch to `<webview>` with a guest preload (`webview-preload.js`) that forwards dragenter/over/leave/drop via `sendToHost`. Host listens and resolves files/folders (folder → index.html).
 
 - Background transparency for tools
@@ -13,20 +13,20 @@ This document tracks notable issues, decisions, and fixes while developing the w
   - Strudel: inject CSS to clear common wrappers and remove `blackscreen/whitescreen/greenscreen` classes.
 
 - Afterimage / ghosting during opacity changes & pans
-  - Observed: Fully transparent BrowserWindows plus GPU canvas (e.g., tldraw) can leave stale pixels (“afterburn”) when panning or changing opacity.
-  - Tried (and dropped): OS‑level window opacity; animating wrapper opacity; transform/visibility nudges; `contain: paint` on webview (interfered with canvas invalidation).
+  - Observed: Fully transparent BrowserWindows plus GPU canvas (e.g., tldraw) can leave stale pixels ("afterburn") when panning or changing opacity.
+  - Tried (and dropped): OS-level window opacity; animating wrapper opacity; transform/visibility nudges; `contain: paint` on webview (interfered with canvas invalidation).
   - Working profile (default):
     - Window background alpha = 1% (`#00000001`) to stabilize the compositor
-    - Opacity changes are CSS‑only (webview opacity and backdrop tint); no fades
+    - Opacity changes are CSS-only (webview opacity and backdrop tint); no fades
     - Conditional, debounced Hard Flush only when background alpha is 0% (true transparent)
     - Manual Hard Flush command (Cmd+Shift+F) for stubborn frames
-    - Optional toggles: Pre‑Draw Hard Flush; Canvas Safe Mode (disable Accelerated2dCanvas)
+    - Optional toggles: Pre-Draw Hard Flush; Canvas Safe Mode (disable Accelerated2dCanvas)
   - Result: No ghosting in default mode, minimal flashing; alpha 0% is supported with short debounced flushes
 
 - Popup/link handling (target=_blank / window.open)
   - Problem: Links with `target="_blank"` either did nothing or opened with native window chrome.
-  - Change: Enabled `<webview allowpopups>` and added a main‑process `setWindowOpenHandler` for webview contents.
-  - Behavior: We deny the default popup and instead create a new frameless CloudyWindow via `createWindow()`, then send a `navigate-to` IPC so the new window’s webview loads the URL.
+  - Change: Enabled `<webview allowpopups>` and added a main-process `setWindowOpenHandler` for webview contents.
+  - Behavior: We deny the default popup and instead create a new frameless CloudyWindow via `createWindow()`, then send a `navigate-to` IPC so the new window's webview loads the URL.
   - Notes: `about:blank` popups are ignored; windows are tracked in our `windows` set and appear in the Window menu. No native titlebar/decoration.
 
 - Shortcuts (current)
@@ -53,16 +53,16 @@ This document tracks notable issues, decisions, and fixes while developing the w
 
 ## TODO / Ideas
 
-- Per‑site CSS recipes registry + UI toggle (enable/disable for current site).
+- Per-site CSS recipes registry + UI toggle (enable/disable for current site).
 - Optional micro‑fade on backdrop changes only (if needed); keep webview static.
-- Consider an in‑app “Zap CSS” tool for one‑off removals, store per‑site CSS.
+- Consider an in-app "Zap CSS" tool for one-off removals, store per-site CSS.
 
 ## 2025‑09 - DnD + Packaged App Robustness
 
 - Packaged DnD reliability
-  - Problem: In packaged apps, drops sometimes provide no filesystem path (especially from Finder or guest pages). File URLs weren’t properly encoded; preload path could be relative.
+  - Problem: In packaged apps, drops sometimes provide no filesystem path (especially from Finder or guest pages). File URLs weren't properly encoded; preload path could be relative.
   - Fixes:
-    - Properly percent‑encode local paths before navigating (`file://`).
+    - Properly percent-encode local paths before navigating (`file://`).
     - Ensure `<webview>` uses an absolute preload path in packaged builds (preload.js + guard in renderer).
     - Enable `--allow-file-access-from-files` to allow local subresources when viewing HTML/images/PDFs via `file://`.
     - Prefer `webview.src` for `file://` navigations in packaged contexts.
@@ -70,11 +70,11 @@ This document tracks notable issues, decisions, and fixes while developing the w
 - Guest/host DnD pipeline
   - Webview preload forwards dragenter/over/leave/drop via `sendToHost`.
   - Host shows an overlay and temporarily sets the webview to `pointer-events:none` so the overlay receives the final drop.
-  - Added resilient fallbacks: extract `public.file-url`/`text/uri-list`/`text/plain`/`text/x-moz-url` when `file.path` is missing; otherwise use blob URL for file types that don’t need relative paths (images, PDFs).
-  - Debounced overlay hide to remove flicker; added a drop guard to prevent double handling (which previously caused “index → blob” regressions).
+  - Added resilient fallbacks: extract `public.file-url`/`text/uri-list`/`text/plain`/`text/x-moz-url` when `file.path` is missing; otherwise use blob URL for file types that don't need relative paths (images, PDFs).
+  - Debounced overlay hide to remove flicker; added a drop guard to prevent double handling (which previously caused "index -> blob" regressions).
 
 - Folder drops (no server required)
-  - New: If the OS doesn’t expose a folder path, we enumerate the dropped directory via `webkitGetAsEntry`, stream files to main, write them to a temp folder, then open its `index.html` directly. This enables p5.js sketches and similar to run via `file://` without a web server.
+  - New: If the OS doesn't expose a folder path, we enumerate the dropped directory via `webkitGetAsEntry`, stream files to main, write them to a temp folder, then open its `index.html` directly. This enables p5.js sketches and similar to run via `file://` without a web server.
 
 - Document viewer transparency
   - New: For `file:`/`blob:`/`data:` URLs, inject CSS to clear Chromium viewer backdrops (images/PDFs now appear over a transparent window).
@@ -83,7 +83,7 @@ This document tracks notable issues, decisions, and fixes while developing the w
   - Added lightweight JSONL logger at `userData/cloudywindow.log` via `debug:log` IPC to trace DnD payloads in the field.
 
 Notes:
-- The Chromium “Invalid mailbox”/SharedImageManager warnings were observed during blob navigations when a frame is torn down mid‑composite; this is benign and reduced after preventing duplicate drop handling.
+- The Chromium "Invalid mailbox"/SharedImageManager warnings were observed during blob navigations when a frame is torn down mid-composite; this is benign and reduced after preventing duplicate drop handling.
 
 ## 2025‑09 - UX Polish: Dragging, Shortcuts, Flicker Smoothing, Screenshots
 
@@ -95,8 +95,8 @@ Notes:
   - Open File `Cmd+O` (no filters; any file). Open Folder `Cmd+Shift+O`.
   - Save Screenshot `Cmd+Shift+S` - captures current window to PNG.
 
-- Text viewer (UTF‑8)
+- Text viewer (UTF-8)
   - Dropping or opening `.txt/.md/.log/.nfo/.asc` renders via a minimal HTML wrapper with monospace fonts and Unicode symbol fallbacks (fixes mojibake for block art).
 
 - Initial flicker smoothing
-  - Added a short “navigation hold” around file:/ and blob: navigations, ending on `dom-ready`/`did-stop-loading` (longer for video/PDF). Works alongside Pre‑Draw Hard Flush.
+  - Added a short "navigation hold" around file:/ and blob: navigations, ending on `dom-ready`/`did-stop-loading` (longer for video/PDF). Works alongside Pre-Draw Hard Flush.
