@@ -56,3 +56,31 @@ This document tracks notable issues, decisions, and fixes while developing the w
 - Per‑site CSS recipes registry + UI toggle (enable/disable for current site).
 - Optional micro‑fade on backdrop changes only (if needed); keep webview static.
 - Consider an in‑app “Zap CSS” tool for one‑off removals, store per‑site CSS.
+
+## 2025‑09 — DnD + Packaged App Robustness
+
+- Packaged DnD reliability
+  - Problem: In packaged apps, drops sometimes provide no filesystem path (especially from Finder or guest pages). File URLs weren’t properly encoded; preload path could be relative.
+  - Fixes:
+    - Properly percent‑encode local paths before navigating (`file://`).
+    - Ensure `<webview>` uses an absolute preload path in packaged builds (preload.js + guard in renderer).
+    - Enable `--allow-file-access-from-files` to allow local subresources when viewing HTML/images/PDFs via `file://`.
+    - Prefer `webview.src` for `file://` navigations in packaged contexts.
+
+- Guest/host DnD pipeline
+  - Webview preload forwards dragenter/over/leave/drop via `sendToHost`.
+  - Host shows an overlay and temporarily sets the webview to `pointer-events:none` so the overlay receives the final drop.
+  - Added resilient fallbacks: extract `public.file-url`/`text/uri-list`/`text/plain`/`text/x-moz-url` when `file.path` is missing; otherwise use blob URL for file types that don’t need relative paths (images, PDFs).
+  - Debounced overlay hide to remove flicker; added a drop guard to prevent double handling (which previously caused “index → blob” regressions).
+
+- Folder drops (no server required)
+  - New: If the OS doesn’t expose a folder path, we enumerate the dropped directory via `webkitGetAsEntry`, stream files to main, write them to a temp folder, then open its `index.html` directly. This enables p5.js sketches and similar to run via `file://` without a web server.
+
+- Document viewer transparency
+  - New: For `file:`/`blob:`/`data:` URLs, inject CSS to clear Chromium viewer backdrops (images/PDFs now appear over a transparent window).
+
+- Diagnostics
+  - Added lightweight JSONL logger at `userData/cloudywindow.log` via `debug:log` IPC to trace DnD payloads in the field.
+
+Notes:
+- The Chromium “Invalid mailbox”/SharedImageManager warnings were observed during blob navigations when a frame is torn down mid‑composite; this is benign and reduced after preventing duplicate drop handling.

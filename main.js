@@ -2,6 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, globalShortcut, screen, Menu, sessi
 const fs = require('fs');
 const path = require('path');
 const siteCssStore = require('./main/siteCssStore');
+const os = require('os');
 
 let siteCssEditorWindow = null; // dedicated editor window
 let lastContentWin = null; // last focused CloudyWindow (content)
@@ -35,6 +36,8 @@ let appIcon = null; // Generated emoji icon
 
 // Allow autoplay without gesture (audio in webviews)
 try { app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required'); } catch {}
+// Improve local file handling for webview file:// content (e.g., images, PDFs, HTML with relative assets)
+try { app.commandLine.appendSwitch('allow-file-access-from-files'); } catch {}
 
 async function generateEmojiIcon(emoji = '🌦️', size = 256) {
   // Create an offscreen window to render the emoji and capture as an image
@@ -979,6 +982,57 @@ app.whenReady().then(async () => {
   });
 
   // Removed global Alt+M (menu accelerator provides the shortcut and shows it visibly)
+});
+
+// Lightweight debug logger: writes JSON lines to userData/cloudywindow.log
+const { ipcMain: __ipcMainForDebug } = require('electron');
+__ipcMainForDebug.handle('debug:log', (_event, payload) => {
+  try {
+    const logDir = app.getPath('userData');
+    const logPath = path.join(logDir, 'cloudywindow.log');
+    const line = JSON.stringify({ t: new Date().toISOString(), p: payload }, null, 0) + os.EOL;
+    fs.mkdirSync(path.dirname(logPath), { recursive: true });
+    fs.appendFileSync(logPath, line, 'utf8');
+    return true;
+  } catch (_) {
+    return false;
+  }
+});
+
+// Import a dropped directory (no real path exposed) into a temp folder and return index path
+ipcMain.handle('tempfs:import', async (_e, payload) => {
+  try {
+    const root = (payload && payload.rootName) ? String(payload.rootName) : 'drop';
+    const files = Array.isArray(payload && payload.files) ? payload.files : [];
+    if (!files.length) return { ok: false, error: 'no files' };
+    const os = require('os');
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cloudy-drop-'));
+    const base = path.join(tmpRoot, root);
+    fs.mkdirSync(base, { recursive: true });
+    for (const f of files) {
+      const rel = String(f.path || f.name || '');
+      if (!rel) continue;
+      const dest = path.join(base, rel);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      let buf;
+      if (Buffer.isBuffer(f.data)) buf = f.data;
+      else if (f.data && f.data.type === 'Buffer' && Array.isArray(f.data.data)) buf = Buffer.from(f.data.data);
+      else if (f.data && f.data.buffer) buf = Buffer.from(f.data.buffer);
+      else if (f.data && ArrayBuffer.isView(f.data)) buf = Buffer.from(f.data.buffer);
+      else if (typeof f.data === 'string') buf = Buffer.from(f.data, 'base64');
+      else buf = Buffer.from([]);
+      fs.writeFileSync(dest, buf);
+    }
+    // Choose an index file
+    let indexRel = 'index.html';
+    const candidates = ['index.html','index.htm'];
+    const found = files.map(f => String(f.path||f.name||'')).find(r => candidates.includes(path.basename(r).toLowerCase()));
+    if (found) indexRel = found;
+    const indexAbs = path.join(base, indexRel);
+    return { ok: true, index: indexAbs };
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
 });
 
 // Move IPC handlers outside of createWindow to avoid registering them multiple times

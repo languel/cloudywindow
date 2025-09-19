@@ -31,10 +31,22 @@ A transparent, borderless browser overlay built with Electron.
    npm start
    ```
 
+## Configuration
+
+- Environment and build settings: see `docs/ENV.md` for icon generation via `.env` and notes on runtime transparency/safety toggles.
+- Scripts:
+  - `npm start` — run the app in development.
+  - `npm run icon` — generate a macOS icon from an emoji (uses `.env`, macOS only).
+  - `npm run build` — build distributables via electron-builder (invokes icon generation on macOS).
+  - `npm run clean` — remove ignored files (dangerous; review with `npm run clean:dry`).
+
 ## Usage
 - Use the navigation bar to enter URLs or open files.
-- Drag and drop files or URLs anywhere on the window to open them. A "Drop file or URL" overlay appears while dragging.
-  - Note: Some cross‑origin pages can swallow drag events. If drop doesn't trigger, use the shortcuts below.
+ - Drag and drop files, folders, or URLs anywhere on the window to open them. A "Drop file or URL" overlay appears while dragging.
+   - Images/PDFs: open directly; document viewer backdrops are forced transparent.
+   - HTML files: self‑contained HTML opens directly. If it references local assets, prefer dropping the entire folder.
+   - Folders: resolves to `index.html` (or first `.html`) and runs locally via `file://`.
+   - Note: Some pages can swallow drag events; if drop doesn't trigger, use the shortcuts below.
 - Links that open in a new tab/window (`target=_blank`) are intercepted and opened as a new CloudyWindow with the same frameless, transparent style. New windows are managed in the Window menu.
 - Per‑site CSS:
   - Developer → Site CSS → Edit In‑App… opens a JSON editor backed by `site-css.json` in your user data folder.
@@ -62,6 +74,11 @@ A transparent, borderless browser overlay built with Electron.
   - `Shift+F9` - Bottom half
   - `Shift+F12` - Bottom‑right 1/16 size (1/4×1/4)
   - `Shift+F11` - Centered overscan (push site UI offscreen)
+
+Transparency safety toggles (in app):
+- View → Developer → Transparent or Near Transparent window background
+- View → Developer → Canvas Safe Mode (disable Accelerated 2D)
+- View → Developer → Pre‑Draw Hard Flush
 
 ## Packaging
 This repository uses electron-builder as the canonical packager and outputs artifacts into `dist/` by default.
@@ -91,6 +108,10 @@ file://<path-to-repo>/default-minimal.html
 - Site CSS store: Rules live at Electron `userData/site-css.json` (per-user, survives updates). Use the in-app editor or open externally.
 - PDFs: Opening PDFs directly in a webview depends on platform support; alternatively open in the system browser.
 - Drag & Drop: Some pages may intercept drops; use `Cmd+Opt+O` / `Opt+Shift+O` if needed.
+ - DnD with folders: On some OS paths aren’t exposed from the drag source; CloudyWindow imports the folder to a temp location and opens its `index.html` automatically (no server required).
+ - Single HTML vs. folder: Dropping a single HTML file without a real path may render via a blob URL (relative assets won’t load). Drop the folder or use Open Folder… for sketches with assets.
+ - Document viewer transparency: Built‑in viewers for file:/blob:/data: URLs have their backdrops cleared to transparent.
+ - Transparency stability: For fully transparent windows (0% alpha) GPU canvas pages may show afterimages. The default is 1% alpha; when at 0% the app performs short hard flushes. See `docs/DEVLOG.md` for details.
 
 ## Build Icon (macOS)
 - To embed a macOS app icon generated from the 🌦️ emoji:
@@ -100,6 +121,8 @@ file://<path-to-repo>/default-minimal.html
 ## Docs
 - Product requirements and plan: `docs/PRD.md`
 - Dev log of solutions and challenges: `docs/DEVLOG.md` (includes transparency/afterimage experiments)
+ - Environment and build settings: `docs/ENV.md`
+ - Zap CSS + per-site CSS design/UX: `docs/ZAPCSS.md`
 
 ## macOS Unsigned Builds (Gatekeeper)
 If you distribute an unsigned build to students, macOS may block it. Options:

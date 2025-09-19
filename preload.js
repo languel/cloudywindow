@@ -70,5 +70,35 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onSiteCssPickerResult: (callback) => ipcRenderer.on('site-css:picker-result', callback),
     onSiteCssAutoAdded: (callback) => ipcRenderer.on('site-css:auto-added', callback),
     // Provide absolute path to webview preload script
-    getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js')
+    getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js'),
+    // Minimal debug logging to main (writes to userData/cloudywindow.log)
+    debugLog: (message, extra) => ipcRenderer.invoke('debug:log', { message, extra }),
+    // Temp FS import: write a virtual folder into a temp dir and return index path
+    tempfsImport: (payload) => ipcRenderer.invoke('tempfs:import', payload)
 });
+
+// Ensure the <webview> uses an absolute preload path even in packaged apps
+try {
+  const { join } = require('path');
+  const absWvPreload = join(__dirname, 'webview-preload.js');
+  const looksAbsolute = (p) => !!p && /^(file:|\/|[A-Za-z]:\\)/.test(p);
+  window.addEventListener('DOMContentLoaded', () => {
+    try {
+      const wv = document.getElementById('content-frame');
+      if (!wv) return;
+      const cur = wv.getAttribute('preload');
+      if (!looksAbsolute(cur) || cur !== absWvPreload) {
+        wv.setAttribute('preload', absWvPreload);
+        // If content already loaded, trigger a light reload so the guest picks up the preload
+        try {
+          if (typeof wv.reload === 'function') {
+            wv.reload();
+          } else {
+            const u = (wv.getURL && wv.getURL()) || wv.src;
+            if (u) wv.src = u;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  });
+} catch (_) {}

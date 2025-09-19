@@ -27,6 +27,10 @@ window.addEventListener('drop', (e) => {
   const uriList = e.dataTransfer?.getData ? e.dataTransfer.getData('text/uri-list') : '';
   const text = e.dataTransfer?.getData ? e.dataTransfer.getData('text/plain') : '';
   safeSend('wv-drop', { files, uriList, text });
+  try {
+    const types = (e.dataTransfer && e.dataTransfer.types) ? Array.from(e.dataTransfer.types) : [];
+    safeSend('wv-debug', { kind: 'drop', types, filesLen: (files && files.length) || 0, hasUriList: !!uriList, hasText: !!text });
+  } catch (_) {}
 });
 
 // ---- Zap CSS picker (install/uninstall + selector computation) ----

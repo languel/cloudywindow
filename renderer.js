@@ -71,13 +71,16 @@ function navigateToUrl(url) {
     let fullUrl = url;
     // Treat absolute URLs including blob:/data:/file:/about: as already absolute
     const isAbsolute = /^(https?:|file:|blob:|data:|about:)/i.test(url);
+    const isFile = /^file:/i.test(url);
     if (!isAbsolute) {
       fullUrl = 'http://' + url;
     }
-    // Ensure webview has a valid absolute preload path
+    // Ensure webview has a valid absolute preload path (robust in packaged builds)
     try {
       const absPreload = window.electronAPI.getWebviewPreloadPath && window.electronAPI.getWebviewPreloadPath();
-      if (absPreload && !iframe.getAttribute('preload')) {
+      const curPreload = iframe.getAttribute('preload');
+      const looksAbsolute = !!curPreload && /^(file:|\/|[A-Za-z]:\\)/.test(curPreload);
+      if (absPreload && (!curPreload || !looksAbsolute)) {
         iframe.setAttribute('preload', absPreload);
       }
     } catch (_) {}
@@ -86,57 +89,185 @@ function navigateToUrl(url) {
       iframe.style.display = 'none';
       iframe.dataset.preflush = '1';
     }
-    if (typeof iframe.loadURL === 'function') {
-      iframe.loadURL(fullUrl);
-    } else {
-      iframe.src = fullUrl;
+    try {
+      if (isFile) {
+        // Setting src tends to be more reliable for local files in packaged apps
+        iframe.src = fullUrl;
+      } else if (typeof iframe.loadURL === 'function') {
+        iframe.loadURL(fullUrl);
+      } else {
+        iframe.src = fullUrl;
+      }
+    } catch (_) {
+      try { iframe.src = fullUrl; } catch (_) {}
     }
     urlInput.value = fullUrl;
 }
 
 function openLocalFile(filePath) {
     if (!filePath) return;
-    // Normalize possible file:// prefix
-    const fileUrl = filePath.startsWith('file://') ? filePath : 'file://' + filePath;
+    // Normalize and properly encode to a valid file:// URL (handles spaces, #, etc.)
+    let fileUrl = filePath;
+    try {
+      if (!String(filePath).startsWith('file://')) {
+        // new URL will percent-encode as needed
+        fileUrl = new URL('file://' + String(filePath)).toString();
+      }
+    } catch (_) {
+      // Fallback: minimal encode for common cases
+      fileUrl = 'file://' + String(filePath).replace(/ /g, '%20');
+    }
     navigateToUrl(fileUrl);
 }
 
-let dragCounter = 0;
+let dragCounter = 0; // legacy counter, now supplemented with debounce
+let __overlayHideTimer = null;
+let __overlayHover = false;
+let __dropGuardActive = false;
 
 function showDropOverlay() {
   if (!dropOverlay) return;
+  __overlayHover = true;
+  if (__overlayHideTimer) { try { clearTimeout(__overlayHideTimer); } catch(_) {} __overlayHideTimer = null; }
   dropOverlay.classList.add('active');
+  // Ensure overlay receives the drop instead of the webview
+  try { if (iframe) iframe.style.pointerEvents = 'none'; } catch(_) {}
 }
 
 function hideDropOverlay() {
   dragCounter = 0;
   if (!dropOverlay) return;
   dropOverlay.classList.remove('active');
+  // Restore webview interactivity
+  try { if (iframe) iframe.style.pointerEvents = ''; } catch(_) {}
 }
 
-function handleFileDrop(event) {
+function debounceHideDropOverlay(ms = 150) {
+  __overlayHover = false;
+  if (__overlayHideTimer) { try { clearTimeout(__overlayHideTimer); } catch(_) {} }
+  __overlayHideTimer = setTimeout(() => {
+    if (!__overlayHover) hideDropOverlay();
+    __overlayHideTimer = null;
+  }, ms);
+}
+
+async function handleFileDrop(event) {
     event.preventDefault();
     event.stopPropagation();
+    // Guard to avoid duplicate handling from multiple listeners/targets
+    if (__dropGuardActive) {
+      try { console.log('[DnD] drop ignored due to guard'); } catch(_) {}
+      return;
+    }
+    __dropGuardActive = true;
+    setTimeout(() => { __dropGuardActive = false; }, 250);
     hideDropOverlay();
 
-    const files = event.dataTransfer?.files;
+    const dt = event.dataTransfer;
+    const files = dt?.files;
     if (files && files.length > 0) {
         const file = files[0];
-        const rawPath = file.path;
-        // Ask main to resolve directories (index.html) etc.
-        window.electronAPI.resolveOpenable(rawPath).then(resolved => {
-          if (resolved) {
-            openLocalFile(resolved);
-          } else {
-            // As a fallback, attempt to use file path directly
-            openLocalFile(rawPath);
+        const rawPath = file && file.path;
+        try { console.log('[DnD] file:', { name: file && file.name, type: file && file.type, size: file && file.size, hasPath: !!rawPath }); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:file', { name: file && file.name, type: file && file.type, size: file && file.size, rawPath }); } catch(_) {}
+
+        if (rawPath) {
+          // Ask main to resolve directories (index.html) etc.
+          window.electronAPI.resolveOpenable(rawPath).then(resolved => {
+            try { console.log('[DnD] resolved path:', resolved || '(null)'); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:resolved', { resolved }); } catch(_) {}
+            if (resolved) {
+              openLocalFile(resolved);
+            } else {
+              // Try direct path as a last resort
+              openLocalFile(rawPath);
+            }
+          });
+          return;
+        }
+
+        // No file.path (common for directories). Try to extract a file:// URI from any available flavor.
+        const typeCandidates = [
+          'public.file-url',
+          'text/uri-list',
+          'text/plain',
+          'text/x-moz-url',
+          'text/x-moz-url-data'
+        ];
+        // Also iterate over whatever the OS reports
+        const allTypes = Array.from(new Set([...(dt?.types ? Array.from(dt.types) : []), ...typeCandidates]));
+        for (const t of allTypes) {
+          let data = '';
+          try { data = dt.getData(t) || ''; } catch (_) { data = ''; }
+          const s = String(data).trim();
+          if (!s) continue;
+          // Some flavors contain multiple lines: first is URL
+          const first = s.split('\n')[0].trim();
+          if (/^file:/i.test(first)) {
+            try { console.log('[DnD] uri from', t, '→', first); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:uri-any', { t, uri: first }); } catch(_) {}
+            const resolved = await window.electronAPI.resolveOpenable(first);
+            if (resolved) openLocalFile(resolved); else openLocalFile(first);
+            return;
           }
-        });
-        return;
+        }
+
+        // If DataTransfer supports webkitGetAsEntry/isDirectory, import directory to a temp folder and open directly
+        try {
+          const items = event.dataTransfer && event.dataTransfer.items ? Array.from(event.dataTransfer.items) : [];
+          for (const it of items) {
+            const entry = it && (it.webkitGetAsEntry ? it.webkitGetAsEntry() : null);
+            if (entry && entry.isDirectory) {
+              console.log('[DnD] directory dropped; importing…');
+              window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:dir-import', { name: file && file.name });
+              const collected = await collectDirectory(entry);
+              if (collected && collected.files && collected.files.length) {
+                const res = await window.electronAPI.tempfsImport({ rootName: collected.rootName, files: collected.files });
+                if (res && res.ok && res.index) { openLocalFile(res.index); return; }
+              }
+              return;
+            }
+          }
+        } catch (_) {}
+
+        // Blob URL fallback (works well for images/PDF; HTML may miss relative assets)
+        try {
+          const blobUrl = URL.createObjectURL(file);
+          try { console.log('[DnD] using blob URL fallback:', blobUrl); } catch(_) {}
+          try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:bloburl', { url: blobUrl, name: file && file.name, type: file && file.type, size: file && file.size }); } catch(_) {}
+          navigateToUrl(blobUrl);
+          return;
+        } catch (e) {
+          try { console.warn('[DnD] blob URL fallback failed:', e && e.message || e); } catch(_) {}
+        }
+        // If we reach here, continue to other fallbacks below
+    }
+
+    // Fallback: try DataTransfer.items for file entries
+    const items = event.dataTransfer?.items;
+    if (items && items.length > 0) {
+      for (const it of items) {
+        if (it.kind === 'file') {
+          const f = it.getAsFile && it.getAsFile();
+          const p = f && (f.path || f.name);
+          if (p) {
+            try { console.log('[DnD] item file path:', p); } catch(_) {}
+            try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:item-file', { path: p }); } catch(_) {}
+            window.electronAPI.resolveOpenable(p).then(resolved => {
+              if (resolved) openLocalFile(resolved); else openLocalFile(p);
+            });
+            return;
+          }
+        }
+      }
     }
 
     // Check for URI list (file:/// or http(s) URLs)
-    const uriList = event.dataTransfer.getData('text/uri-list');
+    let uriList = '';
+    try { uriList = event.dataTransfer.getData('text/uri-list'); } catch(_) {}
+    if (!uriList) {
+      try { uriList = event.dataTransfer.getData('public.file-url'); } catch(_) {}
+    }
     if (uriList) {
         const first = uriList.split('\n')[0].trim();
         if (first.startsWith('file://')) {
@@ -146,12 +277,16 @@ function handleFileDrop(event) {
           });
           return;
         }
+        try { console.log('[DnD] uri-list:', first); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:uri', { uri: first }); } catch(_) {}
         return navigateToUrl(first);
     }
 
     // Check for plain text
     const text = event.dataTransfer.getData('text/plain');
     if (text) {
+        try { console.log('[DnD] text:', text.slice(0, 200)); } catch(_) {}
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:text', { text: text.slice(0, 200) }); } catch(_) {}
         try {
             new URL(text);
             navigateToUrl(text);
@@ -161,7 +296,11 @@ function handleFileDrop(event) {
               if (resolved) openLocalFile(resolved); else openLocalFile(text);
             });
         }
+        return;
     }
+
+    try { console.warn('[DnD] No openable content found on drop. types=', event.dataTransfer && event.dataTransfer.types); } catch(_) {}
+    try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:none', { types: (event.dataTransfer && event.dataTransfer.types) || [] }); } catch(_) {}
 }
 
 function toggleUI() {
@@ -414,14 +553,12 @@ if (btnSiteCssReload) btnSiteCssReload.addEventListener('click', reloadSiteCssEd
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-    if (type === 'dragenter') dragCounter++;
     showDropOverlay();
   });
   iframe.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
-    if (type === 'dragenter') dragCounter++;
     showDropOverlay();
   });
 });
@@ -430,25 +567,68 @@ if (btnSiteCssReload) btnSiteCssReload.addEventListener('click', reloadSiteCssEd
   document.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
-    dragCounter = Math.max(0, dragCounter - 1);
-    if (dragCounter === 0) hideDropOverlay();
+    debounceHideDropOverlay(160);
   });
   iframe.addEventListener(type, (event) => {
     event.preventDefault();
     event.stopPropagation();
-    dragCounter = Math.max(0, dragCounter - 1);
-    if (dragCounter === 0) hideDropOverlay();
+    debounceHideDropOverlay(160);
   });
 });
 
 document.addEventListener('dragend', () => hideDropOverlay());
 
+// Use overlay-first handling; document fallback (bubble phase) only
 document.addEventListener('drop', handleFileDrop);
 iframe.addEventListener('drop', handleFileDrop);
+
+// Helpers to enumerate a dropped directory via webkit entries and build a payload for temp import
+async function collectDirectory(dirEntry) {
+  const rootName = String(dirEntry && dirEntry.name || 'drop');
+  async function readEntries(directoryEntry) {
+    const reader = directoryEntry.createReader();
+    const out = [];
+    while (true) {
+      const batch = await new Promise((resolve) => reader.readEntries(resolve));
+      if (!batch || batch.length === 0) break;
+      out.push(...batch);
+    }
+    return out;
+  }
+  async function walk(entry, prefix = '') {
+    if (!entry) return [];
+    if (entry.isFile) {
+      const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
+      const u8 = new Uint8Array(await file.arrayBuffer());
+      const rel = (prefix ? prefix + '/' : '') + (file.name || entry.name || 'file');
+      // Pass raw bytes (ArrayBuffer) to main; it will write them to temp
+      return [{ path: rel, name: file.name, data: u8 }];
+    }
+    if (entry.isDirectory) {
+      const children = await readEntries(entry);
+      let acc = [];
+      for (const child of children) {
+        const childRel = (prefix ? prefix + '/' : '') + (entry.name || '');
+        const arr = await walk(child, childRel);
+        acc = acc.concat(arr);
+      }
+      return acc;
+    }
+    return [];
+  }
+  try {
+    const files = await walk(dirEntry, '');
+    return { rootName, files };
+  } catch (e) {
+    try { console.warn('collectDirectory failed', e && e.message || e); } catch(_) {}
+    return null;
+  }
+}
 if (dropOverlay) {
   dropOverlay.addEventListener('dragover', (e) => {
     e.preventDefault();
     if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    __overlayHover = true; // keep alive while hovering overlay
   });
   dropOverlay.addEventListener('drop', handleFileDrop);
 }
@@ -705,6 +885,26 @@ function injectSiteCSS(url) {
   // Optional generic pass (safer to use on-demand via shortcut)
 }
 
+// Make built-in document viewers (images, PDFs, blobs) transparent
+function injectDocViewerTransparency(url) {
+  if (!iframe || typeof iframe.insertCSS !== 'function') return;
+  const u = String(url || '').toLowerCase();
+  const isSpecial = /^(file:|blob:|data:)/.test(u);
+  if (!isSpecial) return;
+  const css = `
+    /* Clear default dark backdrops in Chromium viewers */
+    html, body { background: transparent !important; }
+    img, video, canvas, svg, embed, object { background: transparent !important; }
+    /* PDF viewer common containers */
+    #viewer, #viewerContainer, .viewer, .page, .pdfViewer, .pdfCanvas, viewer-toolbar, .toolbar,
+    .toolbarContainer, .hiddenSmallView, .hiddenLargeView, .secondaryToolbar, .findbar,
+    .viewerContainer, pdf-viewer, #toolbar, #sidebarContainer, #sidebarContent, #thumbnailView {
+      background: transparent !important;
+    }
+  `;
+  try { iframe.insertCSS(css); } catch (_) {}
+}
+
 // Install a guest-page MutationObserver to keep clearing background styles that are reapplied dynamically
 function installTransparencyGuard(url) {
   if (!iframe || typeof iframe.executeJavaScript !== 'function') return;
@@ -797,6 +997,7 @@ if (iframe) {
       if (safe) iframe.setAttribute('disableblinkfeatures', 'Accelerated2dCanvas');
     } catch (_) {}
     injectSiteCSS(currentUrl || '');
+    injectDocViewerTransparency(currentUrl || '');
     applyUserSiteCSS(currentUrl || '');
     // Show after content is ready if we hid before navigation
     if (iframe.dataset.preflush === '1') {
@@ -815,11 +1016,11 @@ if (iframe) {
     // Update URL bar with current location
     try { urlInput.value = iframe.getURL ? iframe.getURL() : urlInput.value; } catch (_) {}
     // Reapply site CSS on full navigations
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
   // Reapply site CSS on in-page navigations (SPA route changes)
   iframe.addEventListener('did-navigate-in-page', (_e) => {
-    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
+    try { const u = iframe.getURL ? iframe.getURL() : iframe.src; injectSiteCSS(u); injectDocViewerTransparency(u); installTransparencyGuard(u); applyUserSiteCSS(u); } catch (_) {}
   });
 
 
@@ -844,8 +1045,11 @@ if (iframe) {
     } else if (event.channel === 'wv-drop') {
       hideDropOverlay();
       const payload = event.args && event.args[0] ? event.args[0] : {};
+      try { console.log('[DnD/wv] drop payload:', payload); } catch(_) {}
+      try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-drop', { payload }); } catch(_) {}
       if (payload.files && payload.files.length > 0) {
         const p = payload.files[0];
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-file', { p }); } catch(_) {}
         window.electronAPI.resolveOpenable(p).then(resolved => {
           if (resolved) openLocalFile(resolved); else openLocalFile(p);
         });
@@ -853,6 +1057,7 @@ if (iframe) {
       }
       const uri = payload.uriList ? String(payload.uriList).split('\n')[0].trim() : '';
       if (uri) {
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-uri', { uri }); } catch(_) {}
         if (uri.startsWith('file://')) {
           window.electronAPI.resolveOpenable(uri).then(resolved => {
             if (resolved) openLocalFile(resolved); else openLocalFile(uri);
@@ -864,6 +1069,7 @@ if (iframe) {
       }
       const text = payload.text || '';
       if (text) {
+        try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:wv-text', { text: text.slice(0,200) }); } catch(_) {}
         try { new URL(text); navigateToUrl(text); }
         catch (_) {
           window.electronAPI.resolveOpenable(text).then(resolved => {
@@ -871,6 +1077,10 @@ if (iframe) {
           });
         }
       }
+    } else if (event.channel === 'wv-debug') {
+      const payload = event.args && event.args[0] ? event.args[0] : {};
+      try { console.log('[WV/debug]', payload); } catch(_) {}
+      try { window.electronAPI.debugLog && window.electronAPI.debugLog('wv:debug', payload); } catch(_) {}
     } else if (event.channel === 'zap-css-picked') {
       try {
         const payload = event.args && event.args[0] ? event.args[0] : {};
