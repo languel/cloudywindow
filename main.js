@@ -120,6 +120,26 @@ function createWindow() {
   // Update menu to show new window
   updateWindowMenu();
 
+  // Move new windows to preferred display (centered) if configured
+  try {
+    const cfg = settingsStore.get();
+    const targetId = cfg && cfg.startup ? cfg.startup.displayId : null;
+    if (targetId !== null && typeof targetId !== 'undefined') {
+      const displays = screen.getAllDisplays();
+      const d = displays.find(dd => dd.id === Number(targetId));
+      const use = d || screen.getPrimaryDisplay();
+      if (use) {
+        const wa = use.workArea;
+        const b = newWindow.getBounds();
+        const w = Math.min(b.width, wa.width);
+        const h = Math.min(b.height, wa.height);
+        const x = wa.x + Math.round((wa.width - w) / 2);
+        const y = wa.y + Math.round((wa.height - h) / 2);
+        newWindow.setBounds({ x, y, width: w, height: h });
+      }
+    }
+  } catch(_) {}
+
   return newWindow;
 }
 
@@ -332,6 +352,25 @@ function createMenu() {
             { label: 'Fill Screen', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='fill-screen', click:()=>settingsStore.setStartupMode('fill-screen') },
             { label: 'Overscan Center', type: 'radio', checked: (settingsStore.get().startup.mode||'normal')==='overscan-center', click:()=>settingsStore.setStartupMode('overscan-center') },
           ]},
+          { label: 'Target Display', submenu: (() => {
+              try {
+                const displays = screen.getAllDisplays();
+                const current = settingsStore.get().startup.displayId;
+                const sub = [];
+                sub.push({ label: 'Auto (Primary)', type: 'radio', checked: current === null || current === undefined, click: ()=>settingsStore.setStartupDisplayId(null) });
+                let idx = 1;
+                for (const d of displays) {
+                  const wa = d.workArea || d.bounds || {width:0,height:0};
+                  const primary = (d.id === screen.getPrimaryDisplay().id);
+                  const label = `Display ${idx} ${wa.width}x${wa.height}` + (primary ? ' (Primary)' : '');
+                  sub.push({ label, type: 'radio', checked: Number(current) === Number(d.id), click: ()=>settingsStore.setStartupDisplayId(d.id) });
+                  idx++;
+                }
+                return sub;
+              } catch(_) { return [{ label: 'Unavailable', enabled: false }]; }
+            })()
+          },
+          },
           { type: 'separator' },
           { label: 'Hide Cursor at Startup', type: 'checkbox', checked: !!settingsStore.get().startup.hideCursor, click: (mi)=>settingsStore.setStartupHideCursor(mi.checked) },
           { type: 'separator' },
@@ -777,6 +816,34 @@ function createMenu() {
         ] : [
           { role: 'close' }
         ]),
+        { type: 'separator' },
+        {
+          label: 'Move This Window To',
+          submenu: (() => {
+            try {
+              const displays = screen.getAllDisplays();
+              const sub = [];
+              let idx = 1;
+              for (const d of displays) {
+                const wa = d.workArea || d.bounds || {width:0,height:0};
+                const primary = (d.id === screen.getPrimaryDisplay().id);
+                const label = `Display ${idx} ${wa.width}x${wa.height}` + (primary ? ' (Primary)' : '');
+                sub.push({ label, click: () => {
+                  const win = BrowserWindow.getFocusedWindow();
+                  if (!win) return;
+                  const b = win.getBounds();
+                  const w = Math.min(b.width, wa.width);
+                  const h = Math.min(b.height, wa.height);
+                  const x = wa.x + Math.round((wa.width - w) / 2);
+                  const y = wa.y + Math.round((wa.height - h) / 2);
+                  win.setBounds({ x, y, width: w, height: h });
+                }});
+                idx++;
+              }
+              return sub;
+            } catch(_) { return [{ label: 'Unavailable', enabled: false }]; }
+          })()
+        },
         { type: 'separator' },
         {
           label: 'Custom Positioning',
@@ -1368,6 +1435,24 @@ app.on('browser-window-focus', updateWindowMenu);
     const cfg = settingsStore.get();
     const win = mainWindow;
     if (win && cfg && cfg.startup) {
+      // Preferred display
+      try {
+        const targetId = cfg.startup.displayId;
+        if (targetId !== null && typeof targetId !== 'undefined') {
+          const displays = screen.getAllDisplays();
+          const d = displays.find(dd => dd.id === Number(targetId));
+          const use = d || screen.getPrimaryDisplay();
+          if (use) {
+            const wa = use.workArea;
+            const b = win.getBounds();
+            const w = Math.min(b.width, wa.width);
+            const h = Math.min(b.height, wa.height);
+            const x = wa.x + Math.round((wa.width - w) / 2);
+            const y = wa.y + Math.round((wa.height - h) / 2);
+            win.setBounds({ x, y, width: w, height: h });
+          }
+        }
+      } catch(_) {}
       // Startup mode
       const mode = cfg.startup.mode || 'normal';
       if (mode === 'fullscreen') {

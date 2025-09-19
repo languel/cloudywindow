@@ -18,7 +18,8 @@ function defaultData() {
     startup: {
       path: null, // absolute path to file or folder
       mode: 'normal', // normal | fullscreen | fill-screen | overscan-center
-      hideCursor: false
+      hideCursor: false,
+      displayId: null // numeric Electron display.id; null -> auto/primary
     }
   };
 }
@@ -58,7 +59,7 @@ class SettingsStore {
   setStartupPath(p) { this.ensureLoaded(); this.data.startup.path = p || null; return this.save(); }
   setStartupMode(mode) { this.ensureLoaded(); this.data.startup.mode = mode || 'normal'; return this.save(); }
   setStartupHideCursor(v) { this.ensureLoaded(); this.data.startup.hideCursor = !!v; return this.save(); }
+  setStartupDisplayId(id) { this.ensureLoaded(); this.data.startup.displayId = (id === null || id === undefined) ? null : Number(id); return this.save(); }
 }
 
 module.exports = new SettingsStore();
-
