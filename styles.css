@@ -9,6 +9,20 @@ body {
     inset: 0;
     opacity: 1;
     isolation: isolate; /* keep composition isolated to this subtree */
+    overflow: visible;
+}
+
+#projection-stage {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+#projection-content {
+    position: absolute;
+    inset: 0;
 }
 
 #ui-container {
@@ -190,6 +204,179 @@ body {
 #mod-drag-overlay.active {
     display: block;
     pointer-events: auto;
+}
+
+#projection-button.active {
+    color: rgba(0, 255, 255, 0.9);
+    text-shadow: 0 0 6px rgba(0, 255, 255, 0.35);
+}
+
+#projection-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2600;
+    display: none;
+    pointer-events: none;
+    font-family: -apple-system, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #fff;
+}
+
+#projection-overlay.active {
+    display: block;
+    pointer-events: auto;
+}
+
+#projection-grid {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(rgba(0, 200, 255, 0.15) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(0, 200, 255, 0.15) 1px, transparent 1px);
+    background-size: 60px 60px;
+    opacity: 0.7;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    transition: opacity 0.2s ease;
+}
+
+#projection-grid.hidden {
+    opacity: 0;
+}
+
+#projection-wireframe {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: visible;
+}
+
+#projection-wire {
+    fill: rgba(0, 200, 255, 0.1);
+    stroke: rgba(0, 200, 255, 0.8);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+}
+
+#projection-diagonal-a,
+#projection-diagonal-b {
+    stroke: rgba(0, 200, 255, 0.35);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+}
+
+.projection-handle {
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    margin: -9px;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 255, 255, 0.9);
+    background: rgba(0, 200, 255, 0.35);
+    box-shadow: 0 0 6px rgba(0, 200, 255, 0.45);
+    pointer-events: auto;
+    cursor: grab;
+    transition: transform 0.1s ease;
+}
+
+.projection-handle.corner:active,
+.projection-handle.center:active {
+    transform: scale(1.1);
+    cursor: grabbing;
+}
+
+.projection-handle[data-index="0"],
+.projection-handle[data-index="2"] {
+    cursor: nwse-resize;
+}
+
+.projection-handle[data-index="1"],
+.projection-handle[data-index="3"] {
+    cursor: nesw-resize;
+}
+
+.projection-handle.center {
+    width: 22px;
+    height: 22px;
+    margin: -11px;
+    border-radius: 6px;
+    border-style: dashed;
+    cursor: move;
+    background: rgba(0, 200, 255, 0.2);
+}
+
+#projection-toolbar {
+    position: absolute;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(0, 200, 255, 0.4);
+    border-radius: 12px;
+    padding: 10px 14px;
+    pointer-events: auto;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(6px);
+}
+
+#projection-toolbar .title {
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+#projection-toolbar button {
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(0, 200, 255, 0.4);
+    background: rgba(0, 200, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+#projection-toolbar button:hover {
+    background: rgba(0, 200, 255, 0.18);
+}
+
+#projection-toolbar button.primary {
+    background: rgba(0, 200, 255, 0.3);
+    border-color: rgba(0, 200, 255, 0.6);
+}
+
+#projection-toolbar button.primary:hover {
+    background: rgba(0, 200, 255, 0.4);
+}
+
+#projection-toolbar .spacer {
+    flex: 1;
+}
+
+#projection-toolbar-status {
+    font-size: 11px;
+    opacity: 0.75;
+    min-width: 160px;
+    text-align: right;
+}
+
+.projection-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    background: rgba(0, 200, 255, 0.12);
+    padding: 2px 6px;
+    border-radius: 6px;
+}
+
+.projection-toggle input {
+    margin: 0;
+    accent-color: rgba(0, 200, 255, 0.9);
+}
+
+.projection-toggle span {
+    opacity: 0.85;
 }
 
 /* Site CSS editor overlay */
