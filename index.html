@@ -11,8 +11,13 @@
     <div id="drag-region"></div>
     <!-- Content root wraps backdrop + webview so we can set overall opacity -->
     <div id="content-root">
-      <!-- Backdrop tint layer (behind content) -->
-      <div id="backdrop"></div>
+      <div id="projection-stage">
+        <div id="projection-content">
+          <!-- Backdrop tint layer (behind content) -->
+          <div id="backdrop"></div>
+          <webview id="content-frame" src="default-cloud.html" style="position:absolute;inset:0;will-change:transform;backface-visibility:hidden;transform:translateZ(0);" preload="./webview-preload.js" allowpopups></webview>
+        </div>
+      </div>
     <!-- Site CSS Editor Overlay -->
     <div id="sitecss-overlay" aria-hidden="true">
       <div class="sitecss-toolbar">
@@ -34,6 +39,7 @@
         <button id="reload-button" title="Reload">⟲</button>
         <button id="open-file-button" title="Open File">⍈</button>
         <button id="new-window-button" title="New Window">+</button>
+        <button id="projection-button" title="Projection Mapping">⌗</button>
         <button id="toggle-ui-button" title="Hide UI">−</button>
         <button id="close-window-button" title="Close Window">×</button>
     </div>
@@ -55,7 +61,29 @@
       <div id="mod-drag-overlay" aria-hidden="true"></div>
       <!-- Frame flash overlay for quick orientation -->
       <div id="frame-flash"></div>
-      <webview id="content-frame" src="default-cloud.html" style="position:absolute;inset:0;will-change:transform;backface-visibility:hidden;transform:translateZ(0);" preload="./webview-preload.js" allowpopups></webview>
+      <div id="projection-overlay" aria-hidden="true" tabindex="-1">
+        <div id="projection-grid" aria-hidden="true"></div>
+        <svg id="projection-wireframe" aria-hidden="true" preserveAspectRatio="none">
+          <polygon id="projection-wire" points=""></polygon>
+          <line id="projection-diagonal-a" x1="0" y1="0" x2="0" y2="0"></line>
+          <line id="projection-diagonal-b" x1="0" y1="0" x2="0" y2="0"></line>
+        </svg>
+        <div class="projection-handle corner" data-index="0"></div>
+        <div class="projection-handle corner" data-index="1"></div>
+        <div class="projection-handle corner" data-index="2"></div>
+        <div class="projection-handle corner" data-index="3"></div>
+        <div class="projection-handle center" data-role="center"></div>
+        <div id="projection-toolbar">
+          <span class="title">Projection Mapping</span>
+          <label class="projection-toggle"><input type="checkbox" id="projection-enabled-toggle"><span>Apply</span></label>
+          <label class="projection-toggle"><input type="checkbox" id="projection-grid-toggle" checked><span>Grid</span></label>
+          <button data-action="reset" title="Reset to window edges">Reset</button>
+          <button data-action="cancel" title="Discard changes">Cancel</button>
+          <button data-action="done" class="primary" title="Save changes">Done</button>
+          <div class="spacer"></div>
+          <div id="projection-toolbar-status"></div>
+        </div>
+      </div>
     </div>
     <script src="./renderer.js"></script>
 </body>

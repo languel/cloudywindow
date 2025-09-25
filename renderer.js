@@ -13,6 +13,21 @@ const uiContainer = document.getElementById('ui-container');
 const frameFlash = document.getElementById('frame-flash');
 const contentRoot = document.getElementById('content-root');
 const modDragOverlay = document.getElementById('mod-drag-overlay');
+const projectionStage = document.getElementById('projection-stage');
+const projectionContent = document.getElementById('projection-content');
+const projectionOverlay = document.getElementById('projection-overlay');
+const projectionButton = document.getElementById('projection-button');
+const projectionGrid = document.getElementById('projection-grid');
+const projectionWireframe = document.getElementById('projection-wireframe');
+const projectionWire = document.getElementById('projection-wire');
+const projectionDiagonalA = document.getElementById('projection-diagonal-a');
+const projectionDiagonalB = document.getElementById('projection-diagonal-b');
+const projectionHandles = projectionOverlay ? Array.from(projectionOverlay.querySelectorAll('.projection-handle.corner')) : [];
+const projectionCenterHandle = projectionOverlay ? projectionOverlay.querySelector('.projection-handle.center') : null;
+const projectionToolbar = document.getElementById('projection-toolbar');
+const projectionEnabledToggle = document.getElementById('projection-enabled-toggle');
+const projectionGridToggle = document.getElementById('projection-grid-toggle');
+const projectionStatus = document.getElementById('projection-toolbar-status');
 // Site CSS editor overlay elements
 const siteCssOverlay = document.getElementById('sitecss-overlay');
 const siteCssEditor = document.getElementById('sitecss-editor');
@@ -24,6 +39,521 @@ const btnSiteCssReload = document.getElementById('sitecss-reload');
 // Pre‑draw flush toggle (persisted)
 let preDrawFlushEnabled = false;
 try { preDrawFlushEnabled = localStorage.getItem('preDrawFlushEnabled') === '1'; } catch (_) {}
+
+// ---------- Projection Mapping (state & helpers) ----------
+const PROJECTION_DEFAULT_POINTS = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 }
+];
+
+let projectionState = {
+  enabled: false,
+  gridVisible: true,
+  points: PROJECTION_DEFAULT_POINTS.map(pt => ({ ...pt }))
+};
+
+let projectionEditing = false;
+let projectionEditPoints = null;
+let projectionOriginalPoints = null;
+let projectionDrag = null;
+let projectionStatusTimer = null;
+let projectionStatusLocked = false;
+
+function cloneProjectionPoints(points) {
+  if (!Array.isArray(points) || points.length !== 4) {
+    return PROJECTION_DEFAULT_POINTS.map(pt => ({ ...pt }));
+  }
+  return points.map(pt => ({
+    x: Number(pt && pt.x) || 0,
+    y: Number(pt && pt.y) || 0
+  }));
+}
+
+function projectionDenormalize(points, width, height) {
+  const pts = cloneProjectionPoints(points);
+  return pts.map(pt => ({ x: pt.x * width, y: pt.y * height }));
+}
+
+function projectionNormalizeFromPixels(points, width, height) {
+  const w = width || 1;
+  const h = height || 1;
+  const limit = 3; // allow mapping up to 300% outside the window bounds
+  const clamp = (value) => {
+    if (!Number.isFinite(value)) return 0;
+    if (value > limit) return limit;
+    if (value < -limit) return -limit;
+    return value;
+  };
+  if (!Array.isArray(points) || points.length !== 4) {
+    return PROJECTION_DEFAULT_POINTS.map(pt => ({ ...pt }));
+  }
+  return points.map(pt => ({
+    x: clamp(((pt && pt.x) || 0) / w),
+    y: clamp(((pt && pt.y) || 0) / h)
+  }));
+}
+
+function getProjectionStageSize() {
+  const el = projectionContent || projectionStage || iframe || contentRoot;
+  if (!el) {
+    return { width: window.innerWidth || 1, height: window.innerHeight || 1 };
+  }
+  const rect = el.getBoundingClientRect ? el.getBoundingClientRect() : null;
+  let width = rect && rect.width ? rect.width : (el.offsetWidth || window.innerWidth || 1);
+  let height = rect && rect.height ? rect.height : (el.offsetHeight || window.innerHeight || 1);
+  if (!width || width <= 0) width = window.innerWidth || 1;
+  if (!height || height <= 0) height = window.innerHeight || 1;
+  return { width, height };
+}
+
+function setProjectionStatusMessage(message, ttl = 0) {
+  if (!projectionStatus) return;
+  projectionStatus.textContent = message || '';
+  projectionStatusLocked = ttl > 0;
+  if (projectionStatusTimer) { clearTimeout(projectionStatusTimer); projectionStatusTimer = null; }
+  if (ttl > 0) {
+    projectionStatusTimer = setTimeout(() => {
+      projectionStatusTimer = null;
+      projectionStatusLocked = false;
+      updateProjectionStatus();
+    }, ttl);
+  }
+}
+
+function updateProjectionStatus() {
+  if (!projectionStatus || projectionStatusLocked) return;
+  const pts = projectionState.points || PROJECTION_DEFAULT_POINTS;
+  const fmt = (pt) => `${(Number(pt.x) || 0).toFixed(3)},${(Number(pt.y) || 0).toFixed(3)}`;
+  projectionStatus.textContent = `TL ${fmt(pts[0])} · TR ${fmt(pts[1])} · BR ${fmt(pts[2])} · BL ${fmt(pts[3])}`;
+}
+
+function updateProjectionButtonState() {
+  if (!projectionButton) return;
+  const active = !!projectionState.enabled;
+  projectionButton.classList.toggle('active', active);
+  projectionButton.title = active
+    ? 'Projection mapping enabled — click to adjust'
+    : 'Projection mapping disabled — click to calibrate';
+}
+
+function updateProjectionGridState() {
+  if (projectionGridToggle) projectionGridToggle.checked = !!projectionState.gridVisible;
+  if (!projectionGrid) return;
+  if (projectionState.gridVisible) projectionGrid.classList.remove('hidden');
+  else projectionGrid.classList.add('hidden');
+}
+
+function solveLinearSystem(matrix, values) {
+  const rows = Array.isArray(matrix) ? matrix.length : 0;
+  if (!rows) return null;
+  const cols = Array.isArray(matrix[0]) ? matrix[0].length : 0;
+  if (!cols || !Array.isArray(values) || values.length !== rows) return null;
+  const augmented = [];
+  for (let i = 0; i < rows; i++) {
+    const row = matrix[i].slice(0, cols);
+    row.push(values[i]);
+    augmented.push(row);
+  }
+  for (let col = 0; col < cols; col++) {
+    let pivotRow = col;
+    let maxVal = Math.abs(augmented[col][col]);
+    for (let r = col + 1; r < rows; r++) {
+      const val = Math.abs(augmented[r][col]);
+      if (val > maxVal) {
+        maxVal = val;
+        pivotRow = r;
+      }
+    }
+    if (maxVal < 1e-10) {
+      return null;
+    }
+    if (pivotRow !== col) {
+      const tmp = augmented[col];
+      augmented[col] = augmented[pivotRow];
+      augmented[pivotRow] = tmp;
+    }
+    const pivot = augmented[col][col];
+    for (let c = col; c <= cols; c++) {
+      augmented[col][c] /= pivot;
+    }
+    for (let r = 0; r < rows; r++) {
+      if (r === col) continue;
+      const factor = augmented[r][col];
+      if (Math.abs(factor) < 1e-12) continue;
+      for (let c = col; c <= cols; c++) {
+        augmented[r][c] -= factor * augmented[col][c];
+      }
+    }
+  }
+  const out = new Array(cols);
+  for (let i = 0; i < cols; i++) {
+    out[i] = augmented[i][cols];
+  }
+  return out;
+}
+
+function solveProjectiveTransform(src, dst) {
+  if (!Array.isArray(src) || !Array.isArray(dst) || src.length !== 4 || dst.length !== 4) return null;
+  const A = [];
+  const b = [];
+  for (let i = 0; i < 4; i++) {
+    const sx = Number(src[i].x) || 0;
+    const sy = Number(src[i].y) || 0;
+    const dx = Number(dst[i].x) || 0;
+    const dy = Number(dst[i].y) || 0;
+    A.push([sx, sy, 1, 0, 0, 0, -sx * dx, -sy * dx]);
+    b.push(dx);
+    A.push([0, 0, 0, sx, sy, 1, -sx * dy, -sy * dy]);
+    b.push(dy);
+  }
+  const h = solveLinearSystem(A, b);
+  if (!h || h.length !== 8) return null;
+  const [h11, h12, h13, h21, h22, h23, h31, h32] = h;
+  return [h11, h12, h13, h21, h22, h23, h31, h32, 1];
+}
+
+function computeProjectionMatrix(width, height, targetPoints) {
+  const src = [
+    { x: 0, y: 0 },
+    { x: width, y: 0 },
+    { x: width, y: height },
+    { x: 0, y: height }
+  ];
+  const matrix3 = solveProjectiveTransform(src, targetPoints);
+  if (!matrix3) return null;
+  const h33 = matrix3[8] || 1;
+  const inv = Math.abs(h33) < 1e-12 ? 1 : (1 / h33);
+  const normalize = (v) => {
+    const n = Number(v) * inv;
+    if (!Number.isFinite(n)) return 0;
+    if (Math.abs(n) < 1e-12) return 0;
+    return n;
+  };
+  const h11 = normalize(matrix3[0]);
+  const h12 = normalize(matrix3[1]);
+  const h13 = normalize(matrix3[2]);
+  const h21 = normalize(matrix3[3]);
+  const h22 = normalize(matrix3[4]);
+  const h23 = normalize(matrix3[5]);
+  const h31 = normalize(matrix3[6]);
+  const h32 = normalize(matrix3[7]);
+  return [
+    h11, h21, 0, h31,
+    h12, h22, 0, h32,
+    0,   0,   1, 0,
+    h13, h23, 0, 1
+  ];
+}
+
+function applyProjectionTransform() {
+  if (!projectionStage) return;
+  const { width, height } = getProjectionStageSize();
+  if (!width || !height) {
+    projectionStage.style.transform = 'none';
+    return;
+  }
+  if (!projectionState.enabled) {
+    projectionStage.style.transform = 'none';
+    projectionStage.style.transformStyle = '';
+    projectionStage.style.backfaceVisibility = '';
+    return;
+  }
+  const target = projectionDenormalize(projectionState.points, width, height);
+  const matrix = computeProjectionMatrix(width, height, target);
+  if (!matrix) {
+    projectionStage.style.transform = 'none';
+    projectionStage.style.transformStyle = '';
+    projectionStage.style.backfaceVisibility = '';
+    return;
+  }
+  const cleaned = matrix.map((value) => {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return 0;
+    if (Math.abs(n) < 1e-10) return 0;
+    return n;
+  });
+  projectionStage.style.transform = `matrix3d(${cleaned.join(',')})`;
+  projectionStage.style.transformStyle = 'preserve-3d';
+  projectionStage.style.backfaceVisibility = 'hidden';
+}
+
+function setProjectionEnabledLocal(enabled, options = {}) {
+  projectionState.enabled = !!enabled;
+  updateProjectionButtonState();
+  if (projectionEnabledToggle && projectionEnabledToggle.checked !== projectionState.enabled) {
+    projectionEnabledToggle.checked = projectionState.enabled;
+  }
+  if (options.apply !== false) {
+    applyProjectionTransform();
+  }
+  updateProjectionStatus();
+  if (options.persist) {
+    persistProjectionEnabled(projectionState.enabled);
+  }
+}
+
+function setProjectionGridLocal(visible, options = {}) {
+  projectionState.gridVisible = !!visible;
+  updateProjectionGridState();
+  if (options.persist) {
+    persistProjectionGrid(projectionState.gridVisible);
+  }
+}
+
+function applyProjectionConfig(cfg, options = {}) {
+  if (!cfg || typeof cfg !== 'object') return;
+  projectionState.points = cloneProjectionPoints(cfg.points);
+  setProjectionGridLocal(cfg.gridVisible !== false, { persist: false });
+  setProjectionEnabledLocal(cfg.enabled, { persist: false, apply: false });
+  applyProjectionTransform();
+  updateProjectionStatus();
+  if (projectionEditing) {
+    const { width, height } = getProjectionStageSize();
+    projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+    updateProjectionOverlayGeometry();
+  }
+}
+
+async function persistProjectionPoints() {
+  if (!window.electronAPI || typeof window.electronAPI.projectionSetPoints !== 'function') {
+    updateProjectionStatus();
+    return;
+  }
+  try {
+    const cfg = await window.electronAPI.projectionSetPoints(projectionState.points);
+    if (cfg) {
+      applyProjectionConfig(cfg, { fromIpc: true });
+    }
+    setProjectionStatusMessage('Mapping saved', 1800);
+  } catch (err) {
+    console.warn('projection: save failed', err);
+    setProjectionStatusMessage('Save failed', 2000);
+  }
+}
+
+async function persistProjectionEnabled(enabled) {
+  if (!window.electronAPI || typeof window.electronAPI.projectionSetEnabled !== 'function') {
+    updateProjectionStatus();
+    return;
+  }
+  try {
+    const cfg = await window.electronAPI.projectionSetEnabled(enabled);
+    if (cfg) {
+      applyProjectionConfig(cfg, { fromIpc: true });
+    } else {
+      setProjectionStatusMessage(enabled ? 'Projection enabled' : 'Projection disabled', 1600);
+    }
+  } catch (err) {
+    console.warn('projection: enable toggle failed', err);
+    setProjectionStatusMessage('Unable to update projection state', 2200);
+  }
+}
+
+async function persistProjectionGrid(visible) {
+  if (!window.electronAPI || typeof window.electronAPI.projectionSetGrid !== 'function') {
+    updateProjectionGridState();
+    return;
+  }
+  try {
+    const cfg = await window.electronAPI.projectionSetGrid(visible);
+    if (cfg) {
+      applyProjectionConfig(cfg, { fromIpc: true });
+    }
+  } catch (err) {
+    console.warn('projection: grid toggle failed', err);
+  }
+}
+
+function resetProjectionToDefault(options = {}) {
+  projectionState.points = PROJECTION_DEFAULT_POINTS.map(pt => ({ ...pt }));
+  const { width, height } = getProjectionStageSize();
+  projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+  applyProjectionTransform();
+  if (projectionEditing) {
+    updateProjectionOverlayGeometry();
+  }
+  updateProjectionStatus();
+  if (options.persist) {
+    persistProjectionPoints();
+  }
+}
+
+function handleProjectionResize() {
+  if (!projectionStage) return;
+  const { width, height } = getProjectionStageSize();
+  if (projectionEditing) {
+    projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+    updateProjectionOverlayGeometry();
+  }
+  applyProjectionTransform();
+}
+
+async function initProjectionMapping() {
+  updateProjectionButtonState();
+  updateProjectionGridState();
+  updateProjectionStatus();
+  if (!window.electronAPI || typeof window.electronAPI.projectionGetConfig !== 'function') {
+    applyProjectionTransform();
+    return;
+  }
+  try {
+    const cfg = await window.electronAPI.projectionGetConfig();
+    if (cfg) {
+      applyProjectionConfig(cfg, { fromIpc: true });
+    } else {
+      applyProjectionTransform();
+    }
+  } catch (err) {
+    console.warn('projection: failed to load config', err);
+    applyProjectionTransform();
+  }
+}
+
+function updateProjectionOverlayGeometry() {
+  if (!projectionOverlay || !projectionEditing) return;
+  const { width, height } = getProjectionStageSize();
+  if (!projectionEditPoints || projectionEditPoints.length !== 4) {
+    projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+  }
+  const pts = projectionEditPoints;
+  projectionHandles.forEach((handle, idx) => {
+    if (!handle || !pts[idx]) return;
+    handle.style.left = `${pts[idx].x}px`;
+    handle.style.top = `${pts[idx].y}px`;
+  });
+  if (projectionCenterHandle) {
+    const cx = pts.reduce((sum, pt) => sum + (pt ? pt.x : 0), 0) / pts.length;
+    const cy = pts.reduce((sum, pt) => sum + (pt ? pt.y : 0), 0) / pts.length;
+    projectionCenterHandle.style.left = `${cx}px`;
+    projectionCenterHandle.style.top = `${cy}px`;
+  }
+  if (projectionWire) {
+    projectionWire.setAttribute('points', pts.map(pt => `${pt.x},${pt.y}`).join(' '));
+  }
+  if (projectionDiagonalA && pts[0] && pts[2]) {
+    projectionDiagonalA.setAttribute('x1', pts[0].x);
+    projectionDiagonalA.setAttribute('y1', pts[0].y);
+    projectionDiagonalA.setAttribute('x2', pts[2].x);
+    projectionDiagonalA.setAttribute('y2', pts[2].y);
+  }
+  if (projectionDiagonalB && pts[1] && pts[3]) {
+    projectionDiagonalB.setAttribute('x1', pts[1].x);
+    projectionDiagonalB.setAttribute('y1', pts[1].y);
+    projectionDiagonalB.setAttribute('x2', pts[3].x);
+    projectionDiagonalB.setAttribute('y2', pts[3].y);
+  }
+}
+
+function openProjectionEditor(focusOverlay = true) {
+  if (!projectionOverlay) return;
+  if (!projectionState.points) {
+    projectionState.points = PROJECTION_DEFAULT_POINTS.map(pt => ({ ...pt }));
+  }
+  if (!projectionStage) {
+    setProjectionStatusMessage('Projection editing unavailable', 2000);
+    return;
+  }
+  if (projectionEditing) {
+    if (focusOverlay) {
+      try { projectionOverlay.focus({ preventScroll: true }); } catch (_) {}
+    }
+    return;
+  }
+  projectionEditing = true;
+  projectionOriginalPoints = cloneProjectionPoints(projectionState.points);
+  const { width, height } = getProjectionStageSize();
+  projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+  projectionOverlay.classList.add('active');
+  projectionOverlay.setAttribute('aria-hidden', 'false');
+  updateProjectionGridState();
+  updateProjectionOverlayGeometry();
+  updateProjectionStatus();
+  setProjectionStatusMessage('Drag corners to match your surface. Press Enter to save or Esc to cancel.', 3600);
+  if (focusOverlay) {
+    try { projectionOverlay.focus({ preventScroll: true }); } catch (_) {}
+  }
+}
+
+function closeProjectionEditor(save) {
+  if (!projectionOverlay || !projectionEditing) return;
+  projectionOverlay.classList.remove('active');
+  projectionOverlay.setAttribute('aria-hidden', 'true');
+  projectionEditing = false;
+  const prev = projectionOriginalPoints ? cloneProjectionPoints(projectionOriginalPoints) : null;
+  projectionOriginalPoints = null;
+  projectionDrag = null;
+  if (!save && prev) {
+    projectionState.points = prev;
+    applyProjectionTransform();
+  }
+  projectionEditPoints = null;
+  updateProjectionStatus();
+  if (save) {
+    persistProjectionPoints();
+  }
+}
+
+function beginProjectionDrag(event, kind, index) {
+  if (!projectionOverlay || !projectionEditing) return;
+  const { width, height } = getProjectionStageSize();
+  if (!projectionEditPoints || projectionEditPoints.length !== 4) {
+    projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+  }
+  projectionDrag = {
+    kind,
+    index,
+    startX: event.clientX,
+    startY: event.clientY,
+    pointerId: event.pointerId,
+    startPoints: projectionEditPoints.map(pt => ({ ...pt })),
+    captureTarget: event.target
+  };
+  try { event.target.setPointerCapture(event.pointerId); } catch (_) {}
+  setProjectionStatusMessage(kind === 'center' ? 'Drag to reposition mapping' : 'Drag to reshape mapping', 1600);
+}
+
+function handleProjectionPointerMove(event) {
+  if (!projectionDrag || !projectionEditing) return;
+  if (projectionDrag.pointerId != null && event.pointerId != null && event.pointerId !== projectionDrag.pointerId) return;
+  event.preventDefault();
+  const dx = event.clientX - projectionDrag.startX;
+  const dy = event.clientY - projectionDrag.startY;
+  const start = projectionDrag.startPoints;
+  if (!start || start.length !== 4) return;
+  if (projectionDrag.kind === 'center') {
+    projectionEditPoints = start.map(pt => ({ x: pt.x + dx, y: pt.y + dy }));
+  } else if (projectionDrag.kind === 'corner') {
+    projectionEditPoints = start.map((pt, idx) => {
+      if (idx === projectionDrag.index) {
+        return { x: pt.x + dx, y: pt.y + dy };
+      }
+      return { ...pt };
+    });
+  }
+  const { width, height } = getProjectionStageSize();
+  projectionState.points = projectionNormalizeFromPixels(projectionEditPoints, width, height);
+  projectionEditPoints = projectionDenormalize(projectionState.points, width, height);
+  applyProjectionTransform();
+  updateProjectionOverlayGeometry();
+  updateProjectionStatus();
+}
+
+function handleProjectionPointerUp(event) {
+  if (!projectionDrag) return;
+  if (projectionDrag.pointerId != null && event.pointerId != null && event.pointerId !== projectionDrag.pointerId) return;
+  const capture = projectionDrag.captureTarget;
+  const pointerId = projectionDrag.pointerId;
+  projectionDrag = null;
+  if (capture && typeof capture.releasePointerCapture === 'function' && pointerId != null) {
+    try { capture.releasePointerCapture(pointerId); } catch (_) {}
+  }
+  updateProjectionStatus();
+}
+
+
+
 
 // Add variables to track window opacity
 let currentOpacity = 0.0; // Default opacity: fully transparent
@@ -903,6 +1433,137 @@ setBackgroundOpacity(currentOpacity);
 
 // Initialize frameless resize handlers
 setupResizeHandlers();
+
+// Initialize projection mapping state and listeners
+initProjectionMapping();
+
+if (window.ResizeObserver) {
+  try {
+    const resizeObserver = new ResizeObserver(() => handleProjectionResize());
+    if (projectionContent) resizeObserver.observe(projectionContent);
+    else if (projectionStage) resizeObserver.observe(projectionStage);
+    else if (contentRoot) resizeObserver.observe(contentRoot);
+  } catch (_) {}
+}
+try { window.addEventListener('resize', () => handleProjectionResize()); } catch (_) {}
+
+if (projectionButton) {
+  projectionButton.addEventListener('click', (event) => {
+    if (event && (event.altKey || event.metaKey || event.ctrlKey)) {
+      const next = !projectionState.enabled;
+      setProjectionEnabledLocal(next, { persist: true });
+      return;
+    }
+    openProjectionEditor(true);
+  });
+}
+
+if (projectionOverlay) {
+  projectionOverlay.addEventListener('keydown', (event) => {
+    if (!projectionEditing) return;
+    const key = event.key;
+    if (key === 'Escape') {
+      event.preventDefault();
+      closeProjectionEditor(false);
+    } else if (key === 'Enter' && !event.shiftKey && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      closeProjectionEditor(true);
+    } else if ((key === 'g' || key === 'G') && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      setProjectionGridLocal(!projectionState.gridVisible, { persist: true });
+    } else if ((key === 'r' || key === 'R') && !event.metaKey && !event.ctrlKey) {
+      event.preventDefault();
+      resetProjectionToDefault();
+      updateProjectionOverlayGeometry();
+      updateProjectionStatus();
+    }
+  }, true);
+}
+
+try {
+  window.addEventListener('keydown', (event) => {
+    if (!projectionEditing) return;
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeProjectionEditor(false);
+    } else if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey) {
+      event.preventDefault();
+      closeProjectionEditor(true);
+    }
+  }, true);
+} catch (_) {}
+
+if (projectionToolbar) {
+  projectionToolbar.addEventListener('click', (event) => {
+    const button = event.target && event.target.closest('button[data-action]');
+    if (!button) return;
+    const action = button.dataset.action;
+    if (action === 'reset') {
+      resetProjectionToDefault();
+      updateProjectionOverlayGeometry();
+      updateProjectionStatus();
+    } else if (action === 'cancel') {
+      closeProjectionEditor(false);
+    } else if (action === 'done') {
+      closeProjectionEditor(true);
+    }
+  });
+}
+
+if (projectionEnabledToggle) {
+  projectionEnabledToggle.addEventListener('change', (event) => {
+    const checked = !!event.target.checked;
+    setProjectionEnabledLocal(checked, { persist: true });
+  });
+}
+
+if (projectionGridToggle) {
+  projectionGridToggle.addEventListener('change', (event) => {
+    const checked = !!event.target.checked;
+    setProjectionGridLocal(checked, { persist: true });
+  });
+}
+
+if (projectionHandles && projectionHandles.length) {
+  projectionHandles.forEach((handle) => {
+    if (!handle) return;
+    handle.addEventListener('pointerdown', (event) => {
+      if (!projectionEditing) openProjectionEditor(true);
+      beginProjectionDrag(event, 'corner', Number(handle.dataset.index || 0));
+    });
+  });
+}
+
+if (projectionCenterHandle) {
+  projectionCenterHandle.addEventListener('pointerdown', (event) => {
+    if (!projectionEditing) openProjectionEditor(true);
+    beginProjectionDrag(event, 'center', -1);
+  });
+}
+
+try {
+  window.addEventListener('pointermove', handleProjectionPointerMove, true);
+  window.addEventListener('pointerup', handleProjectionPointerUp, true);
+  window.addEventListener('pointercancel', handleProjectionPointerUp, true);
+} catch (_) {}
+
+if (window.electronAPI) {
+  if (typeof window.electronAPI.onProjectionConfig === 'function') {
+    window.electronAPI.onProjectionConfig((_event, cfg) => {
+      applyProjectionConfig(cfg, { fromIpc: true });
+    });
+  }
+  if (typeof window.electronAPI.onProjectionEdit === 'function') {
+    window.electronAPI.onProjectionEdit(() => { openProjectionEditor(true); });
+  }
+  if (typeof window.electronAPI.onProjectionReset === 'function') {
+    window.electronAPI.onProjectionReset(() => {
+      resetProjectionToDefault();
+      updateProjectionStatus();
+      setProjectionStatusMessage('Projection reset', 1800);
+    });
+  }
+}
 
 // Inject site-specific CSS (e.g., tldraw transparency) after webview is ready
 function injectSiteCSS(url) {

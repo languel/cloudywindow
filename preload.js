@@ -70,6 +70,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     siteCssGetCurrentHost: () => ipcRenderer.invoke('site-css:get-current-host'),
     onSiteCssPickerResult: (callback) => ipcRenderer.on('site-css:picker-result', callback),
     onSiteCssAutoAdded: (callback) => ipcRenderer.on('site-css:auto-added', callback),
+    // Projection mapping APIs
+    projectionGetConfig: () => ipcRenderer.invoke('projection:get-config'),
+    projectionSetPoints: (points) => ipcRenderer.invoke('projection:set-points', points),
+    projectionSetEnabled: (enabled) => ipcRenderer.invoke('projection:set-enabled', enabled),
+    projectionSetGrid: (visible) => ipcRenderer.invoke('projection:set-grid', visible),
+    onProjectionConfig: (callback) => ipcRenderer.on('projection:config', callback),
+    onProjectionEdit: (callback) => ipcRenderer.on('projection:edit', callback),
+    onProjectionReset: (callback) => ipcRenderer.on('projection:reset', callback),
     // Provide absolute path to webview preload script
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js'),
     // Minimal debug logging to main (writes to userData/cloudywindow.log)

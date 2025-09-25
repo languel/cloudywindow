@@ -8,6 +8,27 @@ const os = require('os');
 let siteCssEditorWindow = null; // dedicated editor window
 let lastContentWin = null; // last focused CloudyWindow (content)
 
+function sendProjectionConfig(win) {
+  try {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send('projection:config', settingsStore.getProjection());
+  } catch (_) {}
+}
+
+function broadcastProjectionConfig() {
+  const cfg = settingsStore.getProjection();
+  for (const win of BrowserWindow.getAllWindows()) {
+    try { win.webContents.send('projection:config', cfg); } catch (_) {}
+  }
+  updateWindowMenu();
+}
+
+function broadcastProjectionReset() {
+  for (const win of BrowserWindow.getAllWindows()) {
+    try { win.webContents.send('projection:reset'); } catch (_) {}
+  }
+}
+
 function openSiteCssEditorWindow() {
   if (siteCssEditorWindow && !siteCssEditorWindow.isDestroyed()) {
     siteCssEditorWindow.focus();
@@ -96,9 +117,10 @@ function createWindow() {
   try {
     newWindow.webContents.once('did-finish-load', () => {
       try { newWindow.webContents.send('set-cursor-hidden', !!newWindow._cursorHidden); } catch(_) {}
+      sendProjectionConfig(newWindow);
     });
   } catch(_) {}
-  
+
   // Add window to our collection
   windows.add(newWindow);
   
@@ -200,7 +222,12 @@ function applyStartupPreferences(win, cfg) {
       else if (mode === 'overscan-center') positionWindowInQuadrant(win, 'overscan-center-110');
     } catch(_) {}
     // Cursor hidden
-    try { win.webContents.once('did-finish-load', () => { try { win.webContents.send('set-cursor-hidden', !!cfg.startup.hideCursor); } catch(_) {} }); } catch(_) {}
+    try {
+      win.webContents.once('did-finish-load', () => {
+        try { win.webContents.send('set-cursor-hidden', !!cfg.startup.hideCursor); } catch(_) {}
+        sendProjectionConfig(win);
+      });
+    } catch(_) {}
     // Startup path navigation
     try {
       const sp = cfg.startup.path;
@@ -238,6 +265,28 @@ ipcMain.handle('set-window-bounds', (event, bounds) => {
   if (win && bounds) {
     win.setBounds(bounds);
   }
+});
+
+ipcMain.handle('projection:get-config', () => {
+  try { return settingsStore.getProjection(); } catch (_) { return settingsStore.getProjection(); }
+});
+
+ipcMain.handle('projection:set-points', (_event, points) => {
+  try { settingsStore.setProjectionPoints(points); } catch (_) {}
+  broadcastProjectionConfig();
+  return settingsStore.getProjection();
+});
+
+ipcMain.handle('projection:set-enabled', (_event, enabled) => {
+  try { settingsStore.setProjectionEnabled(enabled); } catch (_) {}
+  broadcastProjectionConfig();
+  return settingsStore.getProjection();
+});
+
+ipcMain.handle('projection:set-grid', (_event, visible) => {
+  try { settingsStore.setProjectionGridVisible(visible); } catch (_) {}
+  broadcastProjectionConfig();
+  return settingsStore.getProjection();
 });
 
 // Close the currently focused window
@@ -373,6 +422,7 @@ function positionWindowInQuadrant(win, quadrant) {
 function createMenu() {
   const isMac = process.platform === 'darwin';
   const focusedWin = BrowserWindow.getFocusedWindow();
+  const projectionCfg = settingsStore.getProjection();
   const openSiteCssEditorWindow = () => {
     const win = new BrowserWindow({
       width: 800,
@@ -757,6 +807,48 @@ function createMenu() {
             const win = BrowserWindow.getFocusedWindow();
             if (win) win.webContents.send('go-to-url');
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'Projection Mapping',
+          submenu: [
+            {
+              label: 'Apply Mapping',
+              type: 'checkbox',
+              accelerator: 'Shift+F8',
+              checked: !!(projectionCfg && projectionCfg.enabled),
+              click: (menuItem) => {
+                try { settingsStore.setProjectionEnabled(menuItem.checked); } catch (_) {}
+                broadcastProjectionConfig();
+              }
+            },
+            {
+              label: 'Edit Mapping…',
+              accelerator: 'CmdOrCtrl+Shift+M',
+              enabled: !!focusedWin,
+              click: () => {
+                const win = BrowserWindow.getFocusedWindow();
+                if (win) { try { win.webContents.send('projection:edit'); } catch (_) {} }
+              }
+            },
+            {
+              label: 'Show Calibration Grid',
+              type: 'checkbox',
+              checked: !!(projectionCfg && projectionCfg.gridVisible !== false),
+              click: (menuItem) => {
+                try { settingsStore.setProjectionGridVisible(menuItem.checked); } catch (_) {}
+                broadcastProjectionConfig();
+              }
+            },
+            {
+              label: 'Reset Mapping',
+              click: () => {
+                try { settingsStore.resetProjection(); } catch (_) {}
+                broadcastProjectionConfig();
+                broadcastProjectionReset();
+              }
+            }
+          ]
         },
         { type: 'separator' },
         {
