@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Cloudy Companion Demo</title>
+    <style>
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: transparent; /* allow window transparency to show through */
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-app-region: no-drag;
+        overflow: hidden;
+      }
+      #sketch-holder {
+        position: absolute;
+        inset: 0;
+      }
+      /* Minimal helper text */
+      .hint {
+        position: absolute;
+        bottom: 14px;
+        left: 14px;
+        color: rgba(255,255,255,0.92);
+        font-family: -apple-system, system-ui, 'Segoe UI', Roboto, Helvetica, Arial;
+        font-size: 12px;
+        background: rgba(0,0,0,0.25);
+        padding: 6px 10px;
+        border-radius: 10px;
+        /* Avoid backdrop-filter to prevent compositor artifacts on transparent windows */
+        /* backdrop-filter: blur(6px); */
+        letter-spacing: 0.2px;
+        opacity: 1;
+        pointer-events: none;
+        z-index: 5;
+        transition: opacity 0.35s ease;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="sketch-holder"></div>
+    <div class="hint" id="hint">Drag to doodle • Double-click to clear</div>
+
+    <!-- p5.js from CDN (works in local file iframe) -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script>
+    <script>
+      // Cloudy companion p5 sketch (prettier, smoother)
+      let doodles = [];
+      let currentStroke = null;
+      let cloud = { cx: 0, cy: 0, w: 0, h: 0 };
+      let puffs = [];
+      let mouthState = 'smile';
+
+      function setup() {
+        const holder = document.getElementById('sketch-holder');
+        const cnv = createCanvas(windowWidth, windowHeight);
+        cnv.parent(holder);
+        cnv.elt.style.background = 'transparent';
+        // Use device pixel ratio for crisp edges on HiDPI displays
+        pixelDensity(window.devicePixelRatio || 1);
+        colorMode(HSB, 360, 100, 100, 255);
+        strokeCap(ROUND);
+        computeLayout();
+        makePuffs();
+      }
+
+      function windowResized() {
+        resizeCanvas(windowWidth, windowHeight);
+        computeLayout();
+        makePuffs();
+      }
+
+      function computeLayout() {
+        cloud.w = min(width, height) * 0.1;
+        cloud.h = cloud.w * 0.62;
+        cloud.cx = width * 1.0- cloud.w * 0.5;
+        cloud.cy = height * 1.0 - cloud.h * 0.5;
+      }
+
+      function makePuffs() {
+        // Deterministic but not symmetric cloud puffs (cute, hand-drawn feel)
+        randomSeed(7);
+        noiseSeed(17);
+        puffs = [];
+
+        const add = (ox, oy, sx, sy, a) => {
+          puffs.push({ ox, oy, sx, sy, a, s: random(1000) });
+        };
+
+        // Top row across the cloud (non-uniform jitter via noise)
+        const topCount = 2;
+        for (let i = 0; i < topCount; i++) {
+          const t = i / (topCount - 1);
+          const ox = map(t, 0, 1, -0.1, 0.16) + (noise(1.7 * t) - 0.5) * 0.06;
+          const oy = -0.2 + (noise(3.1 * t + 10) - 0.5) * 0.10;
+          const sx = 0.50 + (noise(2.3 * t + 20) - 0.5) * 0.20;
+          const sy = 0.54 + (noise(2.0 * t + 30) - 0.5) * 0.18;
+          const a  = 150 + noise(2.5 * t + 40) * 40;
+          add(ox, oy, sx, sy, a);
+        }
+        // Left side scallops (different count/shape than right)
+        const leftCount = 3;
+        for (let i = 0; i < leftCount; i++) {
+          const ox = -0.2 - i * 0.05 + random(-0.02, 0.02);
+          const oy = -0.1 + random(-0.03, 0.12);
+          const sx = random(0.30, 0.44);
+          const sy = random(0.34, 0.50);
+          const a  = random(80, 120);
+          add(ox, oy, sx, sy, a);
+        }
+        // Right side scallops (slightly more/denser)
+        const rightCount = 3;
+        for (let i = 0; i < rightCount; i++) {
+          const ox = 0.2 + i * 0.06 + random(-0.02, 0.02);
+          const oy = -0.3+ random(-0.01, 0.14);
+          const sx = random(0.28, 0.42);
+          const sy = random(0.34, 0.48);
+          const a  = random(70, 120);
+          add(ox, oy, sx, sy, a);
+        }
+        // Bottom scallops (non-symmetric)
+        const bottomCount = 2;
+        for (let i = 0; i < bottomCount; i++) {
+          const t = i / (bottomCount - 1);
+          const ox = map(t, 0, 1, -0.20, 0.22) + (noise(5.0 * t + 50) - 0.5) * 0.05;
+          const oy = random(0.12, 0.22);
+          const sx = random(0.36, 0.52);
+          const sy = random(0.36, 0.52);
+          const a  = random(50, 105);
+          add(ox, oy, sx, sy, a);
+        }
+      }
+
+      function draw() {
+        clear(); // transparent background
+
+        // Draw doodles behind the cloud
+        if (doodles.length || currentStroke) {
+          noFill();
+          for (let s of doodles) {
+            stroke(s.color || color(20, 0, 100, 200));
+            strokeWeight(s.weight || 3);
+            beginShape();
+            for (let p of s.points) vertex(p.x, p.y);
+            endShape();
+          }
+          if (currentStroke) {
+            stroke(currentStroke.color);
+            strokeWeight(currentStroke.weight);
+            beginShape();
+            for (let p of currentStroke.points) vertex(p.x, p.y);
+            endShape();
+          }
+        }
+
+        // Gentle idle bobbing
+        const t = frameCount * 0.02;
+        const bob = sin(t) * (cloud.h * 0.02);
+        const cx = cloud.cx;
+        const cy = cloud.cy + bob;
+        const w = cloud.w;
+        const h = cloud.h;
+
+        // Soft base shadow
+        noStroke();
+        fill(0, 0, 0, 28);
+        ellipse(cx, cy + h * 0.49, w * 0.62, h * 0.25);
+
+        // Cloud body
+        drawCloud(cx, cy, w, h);
+
+        // Eyes
+        const eyeOffsetX = w * 0.19;
+        const eyeOffsetY = -h * 0.03;
+        const leftEye = { x: cx - eyeOffsetX, y: cy + eyeOffsetY };
+        const rightEye = { x: cx + eyeOffsetX, y: cy + eyeOffsetY };
+        const eyeR = w * 0.085;
+        const pupilR = eyeR * 0.45;
+
+        // Eyes: whites + mouse-tracking pupils
+        fill(0, 0, 100, 255);
+        noStroke();
+        ellipse(leftEye.x, leftEye.y, eyeR * 2, eyeR * 2);
+        ellipse(rightEye.x, rightEye.y, eyeR * 2, eyeR * 2);
+
+        const maxOff = eyeR * 0.36;
+        const mouse = { x: mouseX, y: mouseY };
+        const lp = pupilForEye(leftEye, mouse, maxOff);
+        const rp = pupilForEye(rightEye, mouse, maxOff);
+        fill(0, 0, 20, 255);
+        ellipse(lp.x, lp.y, pupilR * 2, pupilR * 2);
+        ellipse(rp.x, rp.y, pupilR * 2, pupilR * 2);
+
+        // Mouth: smile or surprised "o"
+        if (mouthState === 'surprised') {
+          noFill();
+          stroke(0, 0, 20, 240);
+          strokeWeight(max(1.6, w * 0.012));
+          const r = min(w, h) * 0.05;
+          ellipse(cx, cy + h * 0.10, r * 2, r * 2);
+        } else {
+          stroke(0, 0, 20, 240);
+          strokeWeight(max(1.6, w * 0.012));
+          noFill();
+          arc(cx, cy + h * 0.09, w * 0.12, h * 0.10, 0, PI);
+        }
+      }
+
+      function drawCloud(x, y, w, h) {
+        noStroke();
+        const t = frameCount * 0.01; // slow time
+        const wobblePos = 0.02;      // position wobble (in cloud units)
+        const wobbleScale = 0.06;    // scale wobble fraction
+
+        // Soft main belly with gentle wobble
+        const wb = 0.82 * (1 + (noise(999 + t) - 0.5) * 0.04);
+        const hb = 0.76 * (1 + (noise(555 + t) - 0.5) * 0.04);
+        fill(0, 0, 100, 230);
+        ellipse(x, y + h * 0.02, w * wb, h * hb);
+
+        // Puffy parts with per-puff wobble
+        for (let p of puffs) {
+          const ox = p.ox + (noise(p.s + t) - 0.5) * wobblePos;
+          const oy = p.oy + (noise(p.s + 100 + t) - 0.5) * wobblePos;
+          const sx = p.sx * (1 + (noise(p.s + 200 + t) - 0.5) * wobbleScale);
+          const sy = p.sy * (1 + (noise(p.s + 300 + t) - 0.5) * wobbleScale);
+          const a  = p.a; // keep alpha stable for softness
+          fill(0, 0, 100, a);
+          ellipse(x + ox * w, y + oy * h, w * sx, h * sy);
+        }
+
+        // Subtle highlight to mimic glossy puff
+        fill(0, 0, 100, 40);
+        ellipse(x - w * 0.18, y - h * 0.10, w * 0.32, h * 0.24);
+      }
+
+      function pupilForEye(eye, mouse, maxOffset) {
+        const dx = mouse.x - eye.x;
+        const dy = mouse.y - eye.y;
+        const d = sqrt(dx * dx + dy * dy);
+        if (d < 0.0001) return { x: eye.x, y: eye.y };
+        const ndx = (dx / d) * min(maxOffset, d * 0.25);
+        const ndy = (dy / d) * min(maxOffset, d * 0.25);
+        return { x: eye.x + ndx, y: eye.y + ndy };
+      }
+
+      function mousePressed() {
+        const hue = (frameCount * 2) % 360;
+        currentStroke = { color: color(hue, 35, 100, 210), weight: 3, points: [] };
+        currentStroke.points.push({ x: mouseX, y: mouseY });
+        hideHint();
+        // Surprise mouth when clicking on the face region
+        const dx = mouseX - cloud.cx;
+        const dy = mouseY - cloud.cy;
+        const faceW = cloud.w * 0.45;
+        const faceH = cloud.h * 0.35;
+        if (abs(dx) < faceW && abs(dy) < faceH) {
+          mouthState = 'surprised';
+          setTimeout(() => { mouthState = 'smile'; }, 380);
+        }
+      }
+
+      function mouseDragged() {
+        if (!currentStroke) return;
+        currentStroke.points.push({ x: mouseX, y: mouseY });
+      }
+
+      function mouseReleased() {
+        if (currentStroke && currentStroke.points.length > 1) {
+          doodles.push(currentStroke);
+        }
+        currentStroke = null;
+      }
+
+      function doubleClicked() {
+        doodles = [];
+        return false;
+      }
+
+      function keyPressed() {
+        if (key === 'c' || key === 'C') {
+          doodles = [];
+        }
+      }
+      // Hint hide after 8 seconds or on first interaction
+      function hideHint() {
+        const h = document.getElementById('hint');
+        if (!h || h.dataset.hidden === '1') return;
+        h.style.opacity = 0;
+        h.dataset.hidden = '1';
+        setTimeout(() => { if (h) h.style.display = 'none'; }, 400);
+      }
+      setTimeout(hideHint, 8000);
+    </script>
+  </body>
+</html>

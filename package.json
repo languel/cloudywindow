@@ -318,7 +318,12 @@
     "mac": {
       "category": "public.app-category.utilities",
       "icon": "build/icon.icns",
-      "artifactName": "cloudywindow-${version}-${arch}.${ext}"
+      "artifactName": "cloudywindow-${version}-${arch}.${ext}",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.inherit.plist",
+      "notarize": true
     },
     "win": {
       "target": ["nsis", "zip"],
