@@ -126,7 +126,12 @@ function openLocalFile(filePath) {
 }
 
 function escapeHtml(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 }
 
 function openTextContentAsHtml(text, title) {
@@ -1347,11 +1352,22 @@ const playlistStatus = document.getElementById('playlist-status');
 // Playlist state
 let playlist = [];
 let currentPlaylistIndex = -1;
+let playlistFinished = false;
 let playlistLoop = true;
 let playlistAutoplay = true;
 let playlistTimer = null;
 let playlistInterval = null;
 let playlistTimeRemaining = 0;
+
+// Helper to generate a unique ID safely
+function generateUniqueId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID();
+    } catch (_) {}
+  }
+  return Date.now() + '-' + Math.random().toString(36).substring(2, 15);
+}
 
 // Load playlist from localStorage
 function loadPlaylist() {
@@ -1367,8 +1383,8 @@ function loadPlaylist() {
   // Default items if empty
   if (!playlist || playlist.length === 0) {
     playlist = [
-      { id: Date.now() + '-1', url: 'https://example.com', autoplay: true, duration: 10 },
-      { id: Date.now() + '-2', url: 'https://wikipedia.org', autoplay: true, duration: 15 }
+      { id: 'demo-1', url: 'https://example.com', autoplay: true, duration: 10 },
+      { id: 'demo-2', url: 'https://wikipedia.org', autoplay: true, duration: 15 }
     ];
   }
   
@@ -1452,7 +1468,7 @@ function renderPlaylist() {
     if (durationInput) {
       durationInput.addEventListener('change', (e) => {
         let val = parseInt(e.target.value, 10);
-        if (isNaN(val) || val < 1) val = 5;
+        if (isNaN(val) || val < 1) val = 1;
         row.duration = val;
         e.target.value = val;
         savePlaylist();
@@ -1567,6 +1583,10 @@ function clearPlaylistTimers() {
 // Update the status text
 function updateStatus() {
   if (!playlistStatus) return;
+  if (playlistFinished) {
+    playlistStatus.textContent = 'Status: Finished playlist!';
+    return;
+  }
   if (currentPlaylistIndex < 0 || currentPlaylistIndex >= playlist.length) {
     playlistStatus.textContent = 'Status: Stopped / No active slide';
     return;
@@ -1621,6 +1641,7 @@ function startTimerForCurrentSlide() {
 function playPlaylistIndex(index) {
   if (playlist.length === 0) {
     currentPlaylistIndex = -1;
+    playlistFinished = false;
     clearPlaylistTimers();
     updateStatus();
     return;
@@ -1635,8 +1656,8 @@ function playPlaylistIndex(index) {
       // Finished
       clearPlaylistTimers();
       currentPlaylistIndex = -1;
+      playlistFinished = true;
       updateStatus();
-      playlistStatus.textContent = 'Status: Finished playlist!';
       renderPlaylist();
       return;
     }
@@ -1650,6 +1671,7 @@ function playPlaylistIndex(index) {
   }
   
   currentPlaylistIndex = targetIndex;
+  playlistFinished = false;
   
   const targetRow = playlist[currentPlaylistIndex];
   if (targetRow && targetRow.url) {
@@ -1695,7 +1717,7 @@ if (playlistCloseBtn) {
 if (playlistAddBtn) {
   playlistAddBtn.addEventListener('click', () => {
     const newRow = {
-      id: Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      id: generateUniqueId(),
       url: 'https://example.com',
       autoplay: true,
       duration: 10
@@ -1766,11 +1788,24 @@ function initPlaylistUI() {
   }
 }
 
+// Helper to check if user is currently typing in an input/textarea
+function isEditingText() {
+  const active = document.activeElement;
+  if (!active) return false;
+  const tag = active.tagName.toLowerCase();
+  if (tag === 'textarea') return true;
+  if (tag === 'input') {
+    const type = (active.type || 'text').toLowerCase();
+    const textTypes = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+    return textTypes.includes(type);
+  }
+  return false;
+}
+
 // Slide-deck style key navigation
 window.addEventListener('keydown', (e) => {
   // If editing an input or textarea, don't trigger navigation
-  const tag = document.activeElement && document.activeElement.tagName.toLowerCase();
-  if (tag === 'input' || tag === 'textarea') {
+  if (isEditingText()) {
     return;
   }
   
