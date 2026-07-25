@@ -1431,7 +1431,7 @@ function renderPlaylist() {
     rowEl.innerHTML = `
       <button class="row-btn row-play" title="Play this row">▶</button>
       <span class="row-index">${index + 1}</span>
-      <input type="text" class="row-url" value="${escapeHtml(row.url)}" placeholder="https://example.com" />
+      <input type="text" class="row-url" placeholder="https://example.com" />
       <div class="row-controls">
         <label>
           <input type="checkbox" class="row-autoplay" ${row.autoplay ? 'checked' : ''} />
@@ -1450,6 +1450,7 @@ function renderPlaylist() {
     // Add row element event listeners
     const urlInput = rowEl.querySelector('.row-url');
     if (urlInput) {
+      urlInput.value = row.url;
       urlInput.addEventListener('change', (e) => {
         row.url = e.target.value.trim();
         savePlaylist();
@@ -1685,7 +1686,15 @@ function playPlaylistIndex(index) {
   const targetRow = playlist[currentPlaylistIndex];
   if (targetRow && targetRow.url) {
     const trimmed = targetRow.url.trim();
-    if (!/^(javascript|vbscript|chrome|file|data):/i.test(trimmed)) {
+    let normalized = trimmed;
+    try {
+      normalized = decodeURIComponent(trimmed);
+    } catch (_) {}
+    
+    // Remove all whitespace and control characters from the normalized string to prevent obfuscation bypasses
+    normalized = normalized.replace(/[\s\x00-\x20\x7F-\x9F]/g, '');
+    
+    if (!/^(javascript|vbscript|chrome|file|data):/i.test(normalized)) {
       navigateToUrl(trimmed);
     }
   }
@@ -1808,8 +1817,7 @@ function isEditingText() {
   if (tag === 'textarea') return true;
   if (tag === 'input') {
     const type = (active.type || 'text').toLowerCase();
-    const textTypes = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
-    return textTypes.includes(type);
+    return TEXT_INPUT_TYPES.includes(type);
   }
   return false;
 }
