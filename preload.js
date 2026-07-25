@@ -70,6 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     siteCssGetCurrentHost: () => ipcRenderer.invoke('site-css:get-current-host'),
     onSiteCssPickerResult: (callback) => ipcRenderer.on('site-css:picker-result', callback),
     onSiteCssAutoAdded: (callback) => ipcRenderer.on('site-css:auto-added', callback),
+    // Settings APIs
+    getSettings: () => ipcRenderer.invoke('settings:get'),
+    onAddressBarOpacityChanged: (callback) => ipcRenderer.on('address-bar-opacity-changed', callback),
     // Provide absolute path to webview preload script
     getWebviewPreloadPath: () => require('path').join(__dirname, 'webview-preload.js'),
     // Minimal debug logging to main (writes to userData/cloudywindow.log)

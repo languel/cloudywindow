@@ -369,6 +369,17 @@ function positionWindowInQuadrant(win, quadrant) {
   }
 }
 
+function setAddressBarOpacity(v) {
+  try {
+    settingsStore.setAddressBarOpacity(v);
+    const opacity = (settingsStore.get().ui && typeof settingsStore.get().ui.addressBarOpacity === 'number') ? settingsStore.get().ui.addressBarOpacity : 0.5;
+    for (const win of windows) {
+      try { win.webContents.send('address-bar-opacity-changed', opacity); } catch (_) {}
+    }
+    updateWindowMenu();
+  } catch (_) {}
+}
+
 // Create application menu
 function createMenu() {
   const isMac = process.platform === 'darwin';
@@ -458,6 +469,15 @@ function createMenu() {
               } catch(_) { return [{ label: 'Unavailable', enabled: false }]; }
             })()
           },
+          { type: 'separator' },
+          { label: 'Address Bar Opacity', submenu: [
+            { label: '0% (Transparent)', type: 'radio', checked: (settingsStore.get().ui && settingsStore.get().ui.addressBarOpacity) === 0, click: () => setAddressBarOpacity(0) },
+            { label: '25%', type: 'radio', checked: (settingsStore.get().ui && settingsStore.get().ui.addressBarOpacity) === 0.25, click: () => setAddressBarOpacity(0.25) },
+            { label: '50% (Default)', type: 'radio', checked: (settingsStore.get().ui && settingsStore.get().ui.addressBarOpacity) === 0.5, click: () => setAddressBarOpacity(0.5) },
+            { label: '75%', type: 'radio', checked: (settingsStore.get().ui && settingsStore.get().ui.addressBarOpacity) === 0.75, click: () => setAddressBarOpacity(0.75) },
+            { label: '100% (Solid)', type: 'radio', checked: (settingsStore.get().ui && settingsStore.get().ui.addressBarOpacity) === 1, click: () => setAddressBarOpacity(1) },
+          ]},
+          { type: 'separator' },
           { type: 'separator' },
           { label: 'Hide Cursor at Startup', type: 'checkbox', checked: !!settingsStore.get().startup.hideCursor, click: (mi)=>settingsStore.setStartupHideCursor(mi.checked) },
           { type: 'separator' },
@@ -1290,6 +1310,15 @@ ipcMain.handle('tempfs:import', async (_e, payload) => {
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }
+});
+
+// Settings IPC handlers
+ipcMain.handle('settings:get', () => {
+  try { return settingsStore.get(true); } catch (_) { return null; }
+});
+ipcMain.handle('settings:set-address-bar-opacity', (_e, v) => {
+  setAddressBarOpacity(v);
+  return true;
 });
 
 // Move IPC handlers outside of createWindow to avoid registering them multiple times

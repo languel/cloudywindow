@@ -16,7 +16,7 @@ body {
     top: 0;
     left: 0;
     width: 100%;
-    background-color: rgba(0, 0, 0, 0); /* More translucent background */
+    background-color: rgba(0, 0, 0, 0.5);
     color: white;
     padding: 8px;
     z-index: 1000; /* Ensure it's on top */

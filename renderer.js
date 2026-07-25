@@ -385,10 +385,39 @@ async function handleFileDrop(event) {
     try { window.electronAPI.debugLog && window.electronAPI.debugLog('dnd:none', { types: (event.dataTransfer && event.dataTransfer.types) || [] }); } catch(_) {}
 }
 
+let addressBarOpacity = 0.5; // Default 50% opacity
+
+function applyAddressBarOpacity() {
+  if (uiContainer && uiContainer.style.visibility !== 'hidden' && uiContainer.style.visibility !== '') {
+    uiContainer.style.backgroundColor = `rgba(0, 0, 0, ${addressBarOpacity})`;
+  }
+}
+
+// Load settings for addressBarOpacity
+try {
+  if (window.electronAPI && typeof window.electronAPI.getSettings === 'function') {
+    window.electronAPI.getSettings().then(cfg => {
+      if (cfg && cfg.ui && typeof cfg.ui.addressBarOpacity === 'number') {
+        addressBarOpacity = cfg.ui.addressBarOpacity;
+        applyAddressBarOpacity();
+      }
+    }).catch(() => {});
+  }
+} catch (_) {}
+
+if (window.electronAPI && typeof window.electronAPI.onAddressBarOpacityChanged === 'function') {
+  window.electronAPI.onAddressBarOpacityChanged((_e, opacity) => {
+    if (typeof opacity === 'number') {
+      addressBarOpacity = opacity;
+      applyAddressBarOpacity();
+    }
+  });
+}
+
 function toggleUI() {
   if (uiContainer.style.visibility === 'hidden' || uiContainer.style.visibility === '') {
     uiContainer.style.visibility = 'visible';
-    uiContainer.style.backgroundColor = 'rgba(0, 0, 0, 0)'; // Semi-transparent background
+    uiContainer.style.backgroundColor = `rgba(0, 0, 0, ${addressBarOpacity})`;
   } else {
     uiContainer.style.backgroundColor = 'transparent';
     uiContainer.style.visibility = 'hidden';

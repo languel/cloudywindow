@@ -20,6 +20,9 @@ function defaultData() {
       mode: 'normal', // normal | fullscreen | fill-screen | overscan-center
       hideCursor: false,
       displayId: null // numeric Electron display.id; null -> auto/primary
+    },
+    ui: {
+      addressBarOpacity: 0.5 // 0.0 to 1.0 (default 50% opacity)
     }
   };
 }
@@ -31,13 +34,21 @@ class SettingsStore {
     this._loaded = false;
   }
 
-  ensureLoaded() {
-    if (this._loaded) return;
+  ensureLoaded(force = false) {
+    if (this._loaded && !force) return;
     try {
       if (fs.existsSync(this.file)) {
         const raw = fs.readFileSync(this.file, 'utf8');
         const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object') this.data = Object.assign(defaultData(), parsed);
+        if (parsed && typeof parsed === 'object') {
+          const def = defaultData();
+          this.data = {
+            ...def,
+            ...parsed,
+            startup: Object.assign({}, def.startup, parsed.startup || {}),
+            ui: Object.assign({}, def.ui, parsed.ui || {})
+          };
+        }
       } else {
         this.data = defaultData();
         this.save();
@@ -54,12 +65,18 @@ class SettingsStore {
     } catch (_) { return false; }
   }
 
-  get() { this.ensureLoaded(); return JSON.parse(JSON.stringify(this.data)); }
+  get(forceReload = true) { this.ensureLoaded(forceReload); return JSON.parse(JSON.stringify(this.data)); }
 
   setStartupPath(p) { this.ensureLoaded(); this.data.startup.path = p || null; return this.save(); }
   setStartupMode(mode) { this.ensureLoaded(); this.data.startup.mode = mode || 'normal'; return this.save(); }
   setStartupHideCursor(v) { this.ensureLoaded(); this.data.startup.hideCursor = !!v; return this.save(); }
   setStartupDisplayId(id) { this.ensureLoaded(); this.data.startup.displayId = (id === null || id === undefined) ? null : Number(id); return this.save(); }
+  setAddressBarOpacity(v) {
+    this.ensureLoaded();
+    const num = typeof v === 'number' ? v : parseFloat(v);
+    this.data.ui.addressBarOpacity = Number.isNaN(num) ? 0.5 : Math.max(0, Math.min(1, num));
+    return this.save();
+  }
 }
 
 module.exports = new SettingsStore();
