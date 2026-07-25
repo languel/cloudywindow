@@ -1425,7 +1425,7 @@ function renderPlaylist() {
     rowEl.dataset.index = index;
     
     rowEl.innerHTML = `
-      <button class="row-btn row-play" title="Play this row" style="font-size: 11px;">▶</button>
+      <button class="row-btn row-play" title="Play this row">▶</button>
       <span class="row-index">${index + 1}</span>
       <input type="text" class="row-url" value="${escapeHtml(row.url)}" placeholder="https://example.com" />
       <div class="row-controls">
@@ -1433,7 +1433,7 @@ function renderPlaylist() {
           <input type="checkbox" class="row-autoplay" ${row.autoplay ? 'checked' : ''} />
           Autoplay
         </label>
-        <label style="display: flex; align-items: center; gap: 4px;">
+        <label>
           <input type="number" class="row-duration" value="${row.duration}" min="1" step="1" />
           sec
         </label>
@@ -1468,7 +1468,11 @@ function renderPlaylist() {
     if (durationInput) {
       durationInput.addEventListener('change', (e) => {
         let val = parseInt(e.target.value, 10);
-        if (isNaN(val) || val < 1) val = 1;
+        if (isNaN(val) || val < 1) {
+          val = 1;
+        } else if (val > 86400) {
+          val = 86400; // max 24 hours
+        }
         row.duration = val;
         e.target.value = val;
         savePlaylist();
@@ -1675,7 +1679,10 @@ function playPlaylistIndex(index) {
   
   const targetRow = playlist[currentPlaylistIndex];
   if (targetRow && targetRow.url) {
-    navigateToUrl(targetRow.url);
+    const trimmed = targetRow.url.trim();
+    if (!/^javascript:/i.test(trimmed)) {
+      navigateToUrl(trimmed);
+    }
   }
   
   startTimerForCurrentSlide();

@@ -405,6 +405,10 @@ body {
     border-radius: 4px;
 }
 
+.playlist-row button.row-play {
+    font-size: 11px;
+}
+
 .playlist-row button.row-btn:hover {
     color: #fff;
     background: rgba(255,255,255,0.1);
