@@ -26,6 +26,25 @@
       <textarea id="sitecss-editor" spellcheck="false"></textarea>
       <div id="sitecss-status"></div>
     </div>
+    <!-- Playlist Control Panel Overlay -->
+    <div id="playlist-overlay" aria-hidden="true">
+      <div class="playlist-toolbar">
+        <span class="title">Playlist Control Panel</span>
+        <div class="spacer"></div>
+        <button id="playlist-add-btn" title="Add Row">+ Add Row</button>
+        <button id="playlist-loop-btn" class="toggle-active" title="Toggle Loop">Loop: On</button>
+        <button id="playlist-autoplay-btn" class="toggle-active" title="Toggle Autoplay">Autoplay: On</button>
+        <button id="playlist-prev-btn" title="Previous Slide">◀ Prev</button>
+        <button id="playlist-next-btn" title="Next Slide">Next ▶</button>
+        <button id="playlist-close-btn" title="Close Panel">×</button>
+      </div>
+      <div class="playlist-body">
+        <div id="playlist-rows-container">
+          <!-- Rows will be dynamically loaded here -->
+        </div>
+      </div>
+      <div id="playlist-status">Status: No active playlist</div>
+    </div>
     <div id="ui-container">
         <input type="text" id="url-input" placeholder="Enter URL or drop file">
         <button id="go-button" title="Go">➠</button>
@@ -34,6 +53,7 @@
         <button id="reload-button" title="Reload">⟲</button>
         <button id="open-file-button" title="Open File">⍈</button>
         <button id="new-window-button" title="New Window">+</button>
+        <button id="playlist-toggle-btn" title="Playlist (Present Mode)">☰</button>
         <button id="toggle-ui-button" title="Hide UI">−</button>
         <button id="close-window-button" title="Close Window">×</button>
     </div>

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onOpenFolderShortcut: (callback) => ipcRenderer.on('open-folder-shortcut', callback),
     onToggleUrlBarShortcut: (callback) => ipcRenderer.on('toggle-url-bar-shortcut', callback),
     onToggleUiShortcut: (callback) => ipcRenderer.on('toggle-ui-shortcut', callback),
+    onTogglePlaylistShortcut: (callback) => ipcRenderer.on('toggle-playlist-shortcut', callback),
     onRedrawWebview: (callback) => ipcRenderer.on('redraw-webview', callback),
     
     // Add Go shortcut handler

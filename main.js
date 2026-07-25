@@ -748,6 +748,14 @@ function createMenu() {
           }
         },
         {
+          label: 'Toggle Playlist Panel',
+          accelerator: 'CmdOrCtrl+Alt+K',
+          click: () => {
+            const win = BrowserWindow.getFocusedWindow();
+            if (win) win.webContents.send('toggle-playlist-shortcut');
+          }
+        },
+        {
           label: 'Hide Cursor (This Window)',
           type: 'checkbox',
           accelerator: 'CmdOrCtrl+Shift+H',

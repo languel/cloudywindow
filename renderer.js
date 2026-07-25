@@ -430,6 +430,10 @@ function toggleUI() {
 async function openSiteCssEditor() {
   try {
     if (!siteCssOverlay) return;
+    if (playlistOverlay && playlistOverlay.classList.contains('active')) {
+      playlistOverlay.classList.remove('active');
+      playlistOverlay.setAttribute('aria-hidden', 'true');
+    }
     let text = '';
     try { text = await window.electronAPI.siteCssRead(); } catch (_) {}
     if (typeof text !== 'string') text = '';
@@ -1324,3 +1328,464 @@ document.addEventListener('mouseenter', ensureCursorHiddenIfNeeded, true);
 if (iframe) {
   try { iframe.addEventListener('mouseenter', ensureCursorHiddenIfNeeded); } catch(_) {}
 }
+
+// ==========================================
+// Playlist / Present Mode Control Panel
+// ==========================================
+
+const playlistOverlay = document.getElementById('playlist-overlay');
+const playlistToggleBtn = document.getElementById('playlist-toggle-btn');
+const playlistAddBtn = document.getElementById('playlist-add-btn');
+const playlistLoopBtn = document.getElementById('playlist-loop-btn');
+const playlistAutoplayBtn = document.getElementById('playlist-autoplay-btn');
+const playlistPrevBtn = document.getElementById('playlist-prev-btn');
+const playlistNextBtn = document.getElementById('playlist-next-btn');
+const playlistCloseBtn = document.getElementById('playlist-close-btn');
+const playlistRowsContainer = document.getElementById('playlist-rows-container');
+const playlistStatus = document.getElementById('playlist-status');
+
+// Playlist state
+let playlist = [];
+let currentPlaylistIndex = -1;
+let playlistLoop = true;
+let playlistAutoplay = true;
+let playlistTimer = null;
+let playlistInterval = null;
+let playlistTimeRemaining = 0;
+
+// Load playlist from localStorage
+function loadPlaylist() {
+  try {
+    const saved = localStorage.getItem('cw-playlist');
+    if (saved) {
+      playlist = JSON.parse(saved);
+    }
+  } catch (_) {
+    playlist = [];
+  }
+  
+  // Default items if empty
+  if (!playlist || playlist.length === 0) {
+    playlist = [
+      { id: Date.now() + '-1', url: 'https://example.com', autoplay: true, duration: 10 },
+      { id: Date.now() + '-2', url: 'https://wikipedia.org', autoplay: true, duration: 15 }
+    ];
+  }
+  
+  try {
+    const savedLoop = localStorage.getItem('cw-playlist-loop');
+    if (savedLoop !== null) playlistLoop = savedLoop === '1';
+    const savedAutoplay = localStorage.getItem('cw-playlist-autoplay');
+    if (savedAutoplay !== null) playlistAutoplay = savedAutoplay === '1';
+  } catch (_) {}
+}
+
+// Save playlist to localStorage
+function savePlaylist() {
+  try {
+    localStorage.setItem('cw-playlist', JSON.stringify(playlist));
+    localStorage.setItem('cw-playlist-loop', playlistLoop ? '1' : '0');
+    localStorage.setItem('cw-playlist-autoplay', playlistAutoplay ? '1' : '0');
+  } catch (_) {}
+}
+
+// Render playlist rows
+function renderPlaylist() {
+  if (!playlistRowsContainer) return;
+  playlistRowsContainer.innerHTML = '';
+  
+  if (playlist.length === 0) {
+    playlistRowsContainer.innerHTML = `<div style="text-align: center; color: rgba(255,255,255,0.4); padding: 20px;">No websites in playlist. Click "+ Add Row" to begin.</div>`;
+    return;
+  }
+  
+  playlist.forEach((row, index) => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'playlist-row';
+    if (index === currentPlaylistIndex) {
+      rowEl.classList.add('active');
+    }
+    rowEl.dataset.id = row.id;
+    rowEl.dataset.index = index;
+    
+    rowEl.innerHTML = `
+      <button class="row-btn row-play" title="Play this row" style="font-size: 11px;">▶</button>
+      <span class="row-index">${index + 1}</span>
+      <input type="text" class="row-url" value="${escapeHtml(row.url)}" placeholder="https://example.com" />
+      <div class="row-controls">
+        <label>
+          <input type="checkbox" class="row-autoplay" ${row.autoplay ? 'checked' : ''} />
+          Autoplay
+        </label>
+        <label style="display: flex; align-items: center; gap: 4px;">
+          <input type="number" class="row-duration" value="${row.duration}" min="1" step="1" />
+          sec
+        </label>
+        <button class="row-btn row-up" title="Move Up">▲</button>
+        <button class="row-btn row-down" title="Move Down">▼</button>
+        <button class="row-btn row-delete" title="Delete Row">×</button>
+      </div>
+    `;
+    
+    // Add row element event listeners
+    const urlInput = rowEl.querySelector('.row-url');
+    if (urlInput) {
+      urlInput.addEventListener('change', (e) => {
+        row.url = e.target.value.trim();
+        savePlaylist();
+      });
+    }
+    
+    const autoplayCheckbox = rowEl.querySelector('.row-autoplay');
+    if (autoplayCheckbox) {
+      autoplayCheckbox.addEventListener('change', (e) => {
+        row.autoplay = e.target.checked;
+        savePlaylist();
+        // If we are currently on this row and autoplay is toggled, restart/stop timer
+        if (index === currentPlaylistIndex) {
+          startTimerForCurrentSlide();
+        }
+      });
+    }
+    
+    const durationInput = rowEl.querySelector('.row-duration');
+    if (durationInput) {
+      durationInput.addEventListener('change', (e) => {
+        let val = parseInt(e.target.value, 10);
+        if (isNaN(val) || val < 1) val = 5;
+        row.duration = val;
+        e.target.value = val;
+        savePlaylist();
+        // If we are currently on this row and duration is updated, restart/adjust timer
+        if (index === currentPlaylistIndex) {
+          startTimerForCurrentSlide();
+        }
+      });
+    }
+    
+    const playBtn = rowEl.querySelector('.row-play');
+    if (playBtn) {
+      playBtn.addEventListener('click', () => {
+        playPlaylistIndex(index);
+      });
+    }
+    
+    const upBtn = rowEl.querySelector('.row-up');
+    if (upBtn) {
+      upBtn.addEventListener('click', () => {
+        if (index > 0) {
+          // Swap with previous
+          const temp = playlist[index];
+          playlist[index] = playlist[index - 1];
+          playlist[index - 1] = temp;
+          
+          // Update current playlist index if it was affected
+          if (currentPlaylistIndex === index) {
+            currentPlaylistIndex = index - 1;
+          } else if (currentPlaylistIndex === index - 1) {
+            currentPlaylistIndex = index;
+          }
+          
+          savePlaylist();
+          renderPlaylist();
+        }
+      });
+    }
+    
+    const downBtn = rowEl.querySelector('.row-down');
+    if (downBtn) {
+      downBtn.addEventListener('click', () => {
+        if (index < playlist.length - 1) {
+          // Swap with next
+          const temp = playlist[index];
+          playlist[index] = playlist[index + 1];
+          playlist[index + 1] = temp;
+          
+          // Update current playlist index if it was affected
+          if (currentPlaylistIndex === index) {
+            currentPlaylistIndex = index + 1;
+          } else if (currentPlaylistIndex === index + 1) {
+            currentPlaylistIndex = index;
+          }
+          
+          savePlaylist();
+          renderPlaylist();
+        }
+      });
+    }
+    
+    const deleteBtn = rowEl.querySelector('.row-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        playlist.splice(index, 1);
+        
+        // Update current playlist index if it was affected
+        if (currentPlaylistIndex === index) {
+          currentPlaylistIndex = -1;
+          clearPlaylistTimers();
+          updateStatus();
+        } else if (currentPlaylistIndex > index) {
+          currentPlaylistIndex--;
+        }
+        
+        savePlaylist();
+        renderPlaylist();
+      });
+    }
+    
+    playlistRowsContainer.appendChild(rowEl);
+  });
+  
+  // Highlight active row in UI
+  updateActiveRowHighlight();
+}
+
+function updateActiveRowHighlight() {
+  if (!playlistRowsContainer) return;
+  const rows = playlistRowsContainer.querySelectorAll('.playlist-row');
+  rows.forEach((row, idx) => {
+    if (idx === currentPlaylistIndex) {
+      row.classList.add('active');
+    } else {
+      row.classList.remove('active');
+    }
+  });
+}
+
+// Clear all timer/intervals
+function clearPlaylistTimers() {
+  if (playlistTimer) {
+    clearTimeout(playlistTimer);
+    playlistTimer = null;
+  }
+  if (playlistInterval) {
+    clearInterval(playlistInterval);
+    playlistInterval = null;
+  }
+}
+
+// Update the status text
+function updateStatus() {
+  if (!playlistStatus) return;
+  if (currentPlaylistIndex < 0 || currentPlaylistIndex >= playlist.length) {
+    playlistStatus.textContent = 'Status: Stopped / No active slide';
+    return;
+  }
+  
+  const current = playlist[currentPlaylistIndex];
+  const total = playlist.length;
+  
+  if (playlistAutoplay && current.autoplay) {
+    playlistStatus.textContent = `Status: Playing slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}" (${playlistTimeRemaining}s remaining)`;
+  } else if (!playlistAutoplay) {
+    playlistStatus.textContent = `Status: Manual mode (Autoplay master off) - Slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}"`;
+  } else {
+    playlistStatus.textContent = `Status: Slide autoplay disabled for this row - Slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}"`;
+  }
+}
+
+// Start countdown and transition timer for current slide
+function startTimerForCurrentSlide() {
+  clearPlaylistTimers();
+  
+  if (currentPlaylistIndex < 0 || currentPlaylistIndex >= playlist.length) {
+    updateStatus();
+    return;
+  }
+  
+  const current = playlist[currentPlaylistIndex];
+  
+  if (playlistAutoplay && current.autoplay) {
+    playlistTimeRemaining = current.duration;
+    updateStatus();
+    
+    playlistInterval = setInterval(() => {
+      playlistTimeRemaining--;
+      if (playlistTimeRemaining <= 0) {
+        clearInterval(playlistInterval);
+        playlistInterval = null;
+      } else {
+        updateStatus();
+      }
+    }, 1000);
+    
+    playlistTimer = setTimeout(() => {
+      playPlaylistIndex(currentPlaylistIndex + 1);
+    }, current.duration * 1000);
+  } else {
+    updateStatus();
+  }
+}
+
+// Play specified index
+function playPlaylistIndex(index) {
+  if (playlist.length === 0) {
+    currentPlaylistIndex = -1;
+    clearPlaylistTimers();
+    updateStatus();
+    return;
+  }
+  
+  let targetIndex = index;
+  
+  if (targetIndex >= playlist.length) {
+    if (playlistLoop) {
+      targetIndex = 0;
+    } else {
+      // Finished
+      clearPlaylistTimers();
+      currentPlaylistIndex = -1;
+      updateStatus();
+      playlistStatus.textContent = 'Status: Finished playlist!';
+      renderPlaylist();
+      return;
+    }
+  } else if (targetIndex < 0) {
+    if (playlistLoop) {
+      targetIndex = playlist.length - 1;
+    } else {
+      // Stay on first slide or do nothing
+      targetIndex = 0;
+    }
+  }
+  
+  currentPlaylistIndex = targetIndex;
+  
+  const targetRow = playlist[currentPlaylistIndex];
+  if (targetRow && targetRow.url) {
+    navigateToUrl(targetRow.url);
+  }
+  
+  startTimerForCurrentSlide();
+  updateActiveRowHighlight();
+}
+
+// Toggle control panel visibility
+function togglePlaylistPanel() {
+  if (!playlistOverlay) return;
+  const isVisible = playlistOverlay.classList.contains('active');
+  if (isVisible) {
+    playlistOverlay.classList.remove('active');
+    playlistOverlay.setAttribute('aria-hidden', 'true');
+  } else {
+    // Hide sitecss overlay if open
+    if (siteCssOverlay && siteCssOverlay.classList.contains('active')) {
+      siteCssOverlay.classList.remove('active');
+      siteCssOverlay.setAttribute('aria-hidden', 'true');
+    }
+    playlistOverlay.classList.add('active');
+    playlistOverlay.setAttribute('aria-hidden', 'false');
+    renderPlaylist();
+  }
+}
+
+// Event Listeners for Toolbar and Toggle
+if (playlistToggleBtn) {
+  playlistToggleBtn.addEventListener('click', () => {
+    togglePlaylistPanel();
+  });
+}
+
+if (playlistCloseBtn) {
+  playlistCloseBtn.addEventListener('click', () => {
+    togglePlaylistPanel();
+  });
+}
+
+if (playlistAddBtn) {
+  playlistAddBtn.addEventListener('click', () => {
+    const newRow = {
+      id: Date.now() + '-' + Math.random().toString(36).substr(2, 4),
+      url: 'https://example.com',
+      autoplay: true,
+      duration: 10
+    };
+    playlist.push(newRow);
+    savePlaylist();
+    renderPlaylist();
+  });
+}
+
+if (playlistLoopBtn) {
+  playlistLoopBtn.addEventListener('click', () => {
+    playlistLoop = !playlistLoop;
+    playlistLoopBtn.classList.toggle('toggle-active', playlistLoop);
+    playlistLoopBtn.textContent = `Loop: ${playlistLoop ? 'On' : 'Off'}`;
+    savePlaylist();
+    // If we've finished, clicking loop might allow restarting
+    if (playlistLoop && currentPlaylistIndex < 0 && playlist.length > 0) {
+      playPlaylistIndex(0);
+    }
+  });
+}
+
+if (playlistAutoplayBtn) {
+  playlistAutoplayBtn.addEventListener('click', () => {
+    playlistAutoplay = !playlistAutoplay;
+    playlistAutoplayBtn.classList.toggle('toggle-active', playlistAutoplay);
+    playlistAutoplayBtn.textContent = `Autoplay: ${playlistAutoplay ? 'On' : 'Off'}`;
+    savePlaylist();
+    // Start or stop timer depending on autoplay
+    if (currentPlaylistIndex >= 0) {
+      if (playlistAutoplay) {
+        startTimerForCurrentSlide();
+      } else {
+        clearPlaylistTimers();
+        updateStatus();
+      }
+    }
+  });
+}
+
+if (playlistPrevBtn) {
+  playlistPrevBtn.addEventListener('click', () => {
+    playPlaylistIndex(currentPlaylistIndex - 1);
+  });
+}
+
+if (playlistNextBtn) {
+  playlistNextBtn.addEventListener('click', () => {
+    playPlaylistIndex(currentPlaylistIndex + 1);
+  });
+}
+
+// IPC from main process
+window.electronAPI.onTogglePlaylistShortcut && window.electronAPI.onTogglePlaylistShortcut(() => {
+  togglePlaylistPanel();
+});
+
+// Setup master buttons text / active classes on load
+function initPlaylistUI() {
+  if (playlistLoopBtn) {
+    playlistLoopBtn.classList.toggle('toggle-active', playlistLoop);
+    playlistLoopBtn.textContent = `Loop: ${playlistLoop ? 'On' : 'Off'}`;
+  }
+  if (playlistAutoplayBtn) {
+    playlistAutoplayBtn.classList.toggle('toggle-active', playlistAutoplay);
+    playlistAutoplayBtn.textContent = `Autoplay: ${playlistAutoplay ? 'On' : 'Off'}`;
+  }
+}
+
+// Slide-deck style key navigation
+window.addEventListener('keydown', (e) => {
+  // If editing an input or textarea, don't trigger navigation
+  const tag = document.activeElement && document.activeElement.tagName.toLowerCase();
+  if (tag === 'input' || tag === 'textarea') {
+    return;
+  }
+  
+  if (playlist.length === 0) return;
+  
+  if (e.key === 'PageDown' || (e.altKey && e.key === 'ArrowRight')) {
+    e.preventDefault();
+    playPlaylistIndex(currentPlaylistIndex + 1);
+  } else if (e.key === 'PageUp' || (e.altKey && e.key === 'ArrowLeft')) {
+    e.preventDefault();
+    playPlaylistIndex(currentPlaylistIndex - 1);
+  }
+});
+
+// Initialization
+loadPlaylist();
+initPlaylistUI();
+renderPlaylist();
