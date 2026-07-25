@@ -1349,6 +1349,10 @@ const playlistCloseBtn = document.getElementById('playlist-close-btn');
 const playlistRowsContainer = document.getElementById('playlist-rows-container');
 const playlistStatus = document.getElementById('playlist-status');
 
+// Playlist constants
+const MAX_SLIDE_DURATION_SECONDS = 86400; // 24 hours
+const TEXT_INPUT_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+
 // Playlist state
 let playlist = [];
 let currentPlaylistIndex = -1;
@@ -1470,8 +1474,8 @@ function renderPlaylist() {
         let val = parseInt(e.target.value, 10);
         if (isNaN(val) || val < 1) {
           val = 1;
-        } else if (val > 86400) {
-          val = 86400; // max 24 hours
+        } else if (val > MAX_SLIDE_DURATION_SECONDS) {
+          val = MAX_SLIDE_DURATION_SECONDS;
         }
         row.duration = val;
         e.target.value = val;
@@ -1598,13 +1602,14 @@ function updateStatus() {
   
   const current = playlist[currentPlaylistIndex];
   const total = playlist.length;
+  const displayUrl = current.url.length > 60 ? current.url.substring(0, 57) + '...' : current.url;
   
   if (playlistAutoplay && current.autoplay) {
-    playlistStatus.textContent = `Status: Playing slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}" (${playlistTimeRemaining}s remaining)`;
+    playlistStatus.textContent = `Status: Playing slide ${currentPlaylistIndex + 1} of ${total} - "${displayUrl}" (${playlistTimeRemaining}s remaining)`;
   } else if (!playlistAutoplay) {
-    playlistStatus.textContent = `Status: Manual mode (Autoplay master off) - Slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}"`;
+    playlistStatus.textContent = `Status: Manual mode (Autoplay master off) - Slide ${currentPlaylistIndex + 1} of ${total} - "${displayUrl}"`;
   } else {
-    playlistStatus.textContent = `Status: Slide autoplay disabled for this row - Slide ${currentPlaylistIndex + 1} of ${total} - "${current.url}"`;
+    playlistStatus.textContent = `Status: Slide autoplay disabled for this row - Slide ${currentPlaylistIndex + 1} of ${total} - "${displayUrl}"`;
   }
 }
 
@@ -1680,7 +1685,7 @@ function playPlaylistIndex(index) {
   const targetRow = playlist[currentPlaylistIndex];
   if (targetRow && targetRow.url) {
     const trimmed = targetRow.url.trim();
-    if (!/^javascript:/i.test(trimmed)) {
+    if (!/^(javascript|vbscript|chrome|file|data):/i.test(trimmed)) {
       navigateToUrl(trimmed);
     }
   }
