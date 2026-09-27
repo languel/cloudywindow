@@ -126,7 +126,9 @@ Notes:
 - Local builds will skip code signing unless you have a Developer ID certificate configured. Signed builds are required for public distribution on macOS.
 
 ## Demos
-The app loads `default-cloud.html` by default. There are additional local demos you can open with the URL input or by dropping files into the window:
+The app loads `underscores-light.html` by default. This is the single-file Underscores light build; the original CloudyWindow companion demo remains available as `default-cloud.html`.
+
+There are additional local demos you can open with the URL input or by dropping files into the window:
 
 - `default-cloud.html` - transparent desktop companion demo (cloud with eyes + doodling)
 - `default-minimal.html` - minimal transparent page with emoji
